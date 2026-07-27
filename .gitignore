@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Env / secrets — NEVER commit these (templates like .env.example are kept)
+.env
+.env.*
+!.env.example
+
+# Build output
+.next/
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor junk
+.DS_Store
+Thumbs.db

@@ -1,0 +1,78 @@
+/*
+ * Examroom design tokens — the single source of truth for colour, radius, and
+ * elevation. Reference these via Tailwind utilities (bg-paper, text-ink,
+ * border-rule …) or var(--token). Never hard-code hex in components.
+ *
+ * See AGENTS.md §4. Red is reserved for genuine errors and destructive
+ * actions; proctoring flags use --flag (ochre), never red.
+ */
+
+:root {
+  /* Surfaces */
+  --paper: #fbfbf9; /* app background */
+  --surface: #ffffff; /* cards, panels */
+  --surface-sunk: #f4f4f1; /* wells, inactive states */
+  --rule: #e4e5e0; /* hairline borders */
+  --rule-strong: #cfd1cb; /* input borders */
+
+  /* Ink */
+  --ink: #16191d; /* primary text */
+  --ink-2: #4c5259; /* secondary text */
+  --ink-3: #7a8189; /* tertiary / placeholder */
+
+  /* Accent — teal-ink */
+  --accent: #1f5f5b; /* primary actions, selection */
+  --accent-soft: #e8f0ef; /* selected backgrounds */
+  --accent-line: #a9c6c3; /* hover borders */
+
+  /* Status */
+  --flag: #9a6414; /* attention, review, lockout (NOT red) */
+  --danger: #a33232; /* errors and destructive actions only */
+  --ok: #35704a; /* success, correct answers */
+
+  /* Soft status backgrounds (derived, kept subtle for badges/wells) */
+  --flag-soft: #f4ecdd;
+  --danger-soft: #f5e6e6;
+  --ok-soft: #e6efe9;
+
+  /* Shape — 4px spacing grid, radii per AGENTS §4 */
+  --radius-small: 3px;
+  --radius: 5px;
+  --radius-card: 8px;
+
+  /* Elevation — shadows only for genuinely floating layers */
+  --shadow-pop: 0 1px 2px rgba(22, 25, 29, 0.06),
+    0 4px 12px rgba(22, 25, 29, 0.08);
+  --shadow-overlay: 0 8px 32px rgba(22, 25, 29, 0.16);
+}
+
+/*
+ * Dark mode. The tool is designed light-first; dark keeps the same semantic
+ * roles with inverted surfaces. Exam documents stay high-contrast.
+ */
+.dark {
+  --paper: #14161a;
+  --surface: #1b1e23;
+  --surface-sunk: #24272d;
+  --rule: #2c3037;
+  --rule-strong: #3a3f47;
+
+  --ink: #f2f3f0;
+  --ink-2: #b7bcc2;
+  --ink-3: #838a92;
+
+  --accent: #5fb7b0;
+  --accent-soft: #16302e;
+  --accent-line: #2f5b57;
+
+  --flag: #d4a24e;
+  --danger: #d9756f;
+  --ok: #63b083;
+
+  --flag-soft: #2e2718;
+  --danger-soft: #331e1d;
+  --ok-soft: #17281f;
+
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
