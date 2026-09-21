@@ -10,18 +10,18 @@ import {
 import { inviteTeacher, listTeam, removeMember } from "./team.service";
 
 /**
- * Team management (AGENTS §6). Teachers/admins can see the org's members and
- * invite colleagues; students never reach these routes.
+ * Team management is owned by an organisation administrator. Teachers can
+ * collaborate on exams but may not alter institutional membership.
  */
 export const teamRouter: Router = Router();
 
-teamRouter.get("/team", requireRole("admin", "teacher"), async (req, res) => {
+teamRouter.get("/team", requireRole("admin"), async (req, res) => {
   res.json({ members: await listTeam(requireCtx(req)) });
 });
 
 teamRouter.post(
   "/team/invite",
-  requireRole("admin", "teacher"),
+  requireRole("admin"),
   validate(inviteSchema),
   async (req, res) => {
     const input = validated<InviteInput>(req);
@@ -31,7 +31,7 @@ teamRouter.post(
 
 teamRouter.delete(
   "/team/:id",
-  requireRole("admin", "teacher"),
+  requireRole("admin"),
   validate(memberIdParams, "params"),
   async (req, res) => {
     const { id } = validated<{ id: string }>(req, "params");

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Org members (AGENTS §6). A pending member has been invited but not signed in. */
+/** Org members (AGENTS §6). A pending member has not confirmed the invite. */
 export const memberSchema = z.object({
   id: z.string(),
   email: z.string(),

@@ -22,6 +22,13 @@
       "when": 1784899401661,
       "tag": "0002_team_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789354800000,
+      "tag": "0003_organization_registration",
+      "breakpoints": true
     }
   ]
 }

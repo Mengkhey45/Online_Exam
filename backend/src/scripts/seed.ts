@@ -47,7 +47,13 @@ async function main() {
   const supabaseUid =
     process.env.SEED_SUPABASE_UID ?? "seed-placeholder-uid-replace-me";
 
-  await db.insert(organizations).values({ id: ORG_ID, name: "Riverside University" }).onConflictDoNothing();
+  await db.insert(organizations).values({
+    id: ORG_ID,
+    name: "Riverside University",
+    slug: "riverside-university",
+    status: "active",
+    plan: "trial",
+  }).onConflictDoNothing();
 
   // Upsert the login link: when SEED_SUPABASE_UID is given, RE-link an existing
   // demo user to it (onConflictDoNothing would silently skip the update, which

@@ -1,11 +1,12 @@
 import type { NextFunction, Request, Response } from "express";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users, type UserRow } from "@/db/schema";
-import { unauthorized } from "@/lib/errors";
+import { organizations, users, type UserRow } from "@/db/schema";
+import { forbidden, unauthorized } from "@/lib/errors";
 import { verifySupabaseJwt } from "@/lib/supabase-jwt";
 import { verifyAttemptToken } from "@/lib/attempt-token";
 import { logger } from "@/lib/logger";
+import { registerOrganization, registerOrganizationSchema } from "@/modules/registration";
 
 /**
  * Accept a pending invite on first login: if no user is linked to this identity
@@ -76,10 +77,36 @@ export async function authenticate(
       payload.email_verified === true || meta?.email_verified === true;
     const email = typeof payload.email === "string" ? payload.email : undefined;
 
-    const user =
-      existing ?? (await claimPendingInvite(supabaseUserId, email, emailVerified));
+    let user = existing ?? (await claimPendingInvite(supabaseUserId, email, emailVerified));
+
+    // Self-registration stores its signed onboarding data in Supabase user
+    // metadata. Complete it on the first verified authenticated request so a
+    // confirmation redirect cannot strand an account in auth.users only.
+    if (!user && emailVerified) {
+      const pendingRegistration = registerOrganizationSchema.safeParse({
+        organizationName: meta?.organization_name,
+        adminName: meta?.full_name,
+      });
+      if (pendingRegistration.success) {
+        await registerOrganization(token, pendingRegistration.data);
+        [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.supabaseUserId, supabaseUserId))
+          .limit(1);
+      }
+    }
 
     if (!user) throw unauthorized("No account for this identity");
+
+    const [organization] = await db
+      .select({ status: organizations.status })
+      .from(organizations)
+      .where(eq(organizations.id, user.organizationId))
+      .limit(1);
+    if (!organization || organization.status !== "active") {
+      throw unauthorized("This organization is not active.");
+    }
 
     req.ctx = {
       userId: user.id,
@@ -135,7 +162,7 @@ export async function attemptAuthenticate(
 export function requireRole(...roles: Array<"admin" | "teacher" | "student">) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.ctx || !roles.includes(req.ctx.role)) {
-      next(unauthorized());
+      next(forbidden("You don’t have permission to do that."));
       return;
     }
     next();

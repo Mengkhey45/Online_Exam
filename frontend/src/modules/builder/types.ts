@@ -16,6 +16,7 @@ export type BuilderState = {
 };
 
 export type BuilderAction =
+  | { kind: "restore_draft"; title: string; sections: Section[] }
   | { kind: "set_title"; title: string }
   | { kind: "select_block"; blockId: string | null }
   | { kind: "select_section"; sectionId: string | null }

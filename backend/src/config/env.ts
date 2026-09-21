@@ -41,6 +41,8 @@ const envSchema = z.object({
   // these are provisioned; the modules that use them validate presence lazily.
   ANTHROPIC_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
+  MAIL_FROM_NAME: z.string().default("Examroom"),
+  MAIL_FROM_ADDRESS: z.string().email().default("notifications@reankur.online"),
   SENTRY_DSN: z.string().optional(),
 
   LOG_LEVEL: z

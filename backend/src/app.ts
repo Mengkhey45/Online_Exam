@@ -18,6 +18,7 @@ import { entryRouter } from "@/modules/entry";
 import { gradingRouter } from "@/modules/grading";
 import { proctoringRouter } from "@/modules/proctoring";
 import { aiImportRouter } from "@/modules/ai-import";
+import { registrationRouter } from "@/modules/registration";
 
 /** Assemble the API server (AGENTS §4). Wiring only — no business logic here. */
 export function createApp(): Express {
@@ -50,6 +51,7 @@ export function createApp(): Express {
 
   // Public auth (token exchange) runs before authentication.
   app.use(authPublicRouter);
+  app.use(registrationRouter);
 
   // Public student ENTRY (AGENTS §7): key lookup + start-attempt. A keyless
   // student has no Supabase token — the org is derived from the exam key.

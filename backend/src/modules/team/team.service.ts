@@ -3,6 +3,7 @@ import { scopedDb } from "@/db/scoped";
 import { users } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { conflict, forbidden, notFound } from "@/lib/errors";
+import { sendTeamInvitation } from "@/lib/email";
 import type { RequestContext } from "@/middleware/context";
 import type { InviteInput } from "./team.schema";
 
@@ -16,8 +17,8 @@ type Member = {
 
 /**
  * Invite a teacher/admin into the org (AGENTS §6). Creates a PENDING user with
- * no Supabase identity yet — the first login with this verified email links it
- * (see middleware/auth.ts). No email is sent; share the sign-in link directly.
+ * no Supabase identity yet, then sends the sign-in link. The first login with
+ * this verified email confirms and links the invitation (see middleware/auth.ts).
  */
 export async function inviteTeacher(
   ctx: RequestContext,
@@ -45,6 +46,8 @@ export async function inviteTeacher(
       role: input.role,
     }),
   );
+
+  await sendTeamInvitation({ email, name: input.name.trim(), role: input.role });
 
   return { id, email, name: input.name.trim(), role: input.role, status: "pending" };
 }

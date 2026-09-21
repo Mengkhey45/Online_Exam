@@ -34,7 +34,10 @@ export function BuilderTopbar() {
     save.mutate(
       { title: state.title, sections: state.sections },
       {
-        onSuccess: () => toast.success("Draft saved"),
+        onSuccess: () => {
+          sessionStorage.removeItem(`exam-builder:${state.examId}`);
+          toast.success("Draft saved");
+        },
         onError: () => toast.error("Couldn’t save the draft. Try again."),
       },
     );
@@ -44,6 +47,7 @@ export function BuilderTopbar() {
     try {
       // Persist the latest edits first, then publish what's saved.
       await save.mutateAsync({ title: state.title, sections: state.sections });
+      sessionStorage.removeItem(`exam-builder:${state.examId}`);
       await publish.mutateAsync();
       toast.success("Exam published");
       router.push("/dashboard");

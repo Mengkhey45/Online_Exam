@@ -3,8 +3,10 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
+  useState,
   type Dispatch,
 } from "react";
 import type { Block, Section } from "@/modules/exam";
@@ -37,6 +39,14 @@ function mapSection(
 
 function reducer(state: BuilderState, action: BuilderAction): BuilderState {
   switch (action.kind) {
+    case "restore_draft":
+      return {
+        ...state,
+        title: action.title,
+        sections: action.sections,
+        dirty: true,
+      };
+
     case "set_title":
       return { ...state, title: action.title, dirty: true };
 
@@ -180,6 +190,42 @@ export function BuilderProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initial);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(`exam-builder:${initial.examId}`);
+      if (raw) {
+        const draft = JSON.parse(raw) as {
+          title?: unknown;
+          sections?: unknown;
+        };
+        if (typeof draft.title === "string" && Array.isArray(draft.sections)) {
+          dispatch({
+            kind: "restore_draft",
+            title: draft.title,
+            sections: draft.sections as Section[],
+          });
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(`exam-builder:${initial.examId}`);
+    } finally {
+      setHydrated(true);
+    }
+  }, [initial.examId]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      sessionStorage.setItem(
+        `exam-builder:${state.examId}`,
+        JSON.stringify({ title: state.title, sections: state.sections }),
+      );
+    } catch {
+    }
+  }, [hydrated, state]);
+
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return (
     <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>

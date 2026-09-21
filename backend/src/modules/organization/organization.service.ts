@@ -1,7 +1,7 @@
-import { eq, inArray } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { env } from "@/config/env";
 import { scopedDb } from "@/db/scoped";
-import { classes, organizations, students, users } from "@/db/schema";
+import { classes, exams, organizations, students, users } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { conflict, forbidden, notFound } from "@/lib/errors";
 import type { RequestContext } from "@/middleware/context";
@@ -18,6 +18,27 @@ import type {
  */
 export function getCapabilities() {
   return { ai: Boolean(env.ANTHROPIC_API_KEY) };
+}
+
+/** Compact live counts for the administration landing page. */
+export async function getOrganizationDashboard(ctx: RequestContext) {
+  const sdb = scopedDb(ctx.organizationId);
+  const [[teachers], [classCount], [studentCount], [examCount]] = await Promise.all([
+    sdb.db
+      .select({ value: count() })
+      .from(users)
+      .where(sdb.where(users, eq(users.role, "teacher"))),
+    sdb.db.select({ value: count() }).from(classes).where(sdb.where(classes)),
+    sdb.db.select({ value: count() }).from(students).where(sdb.where(students)),
+    sdb.db.select({ value: count() }).from(exams).where(sdb.where(exams)),
+  ]);
+
+  return {
+    teachers: teachers?.value ?? 0,
+    classes: classCount?.value ?? 0,
+    students: studentCount?.value ?? 0,
+    exams: examCount?.value ?? 0,
+  };
 }
 
 // A user can only ever read/write their own organisation (AGENTS §3.1).
