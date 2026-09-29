@@ -25,7 +25,9 @@ export function MonitoringView({ examId }: { examId: string }) {
   );
 
   if (isPending) return <MonitoringSkeleton />;
-  if (isError) {
+
+  // CHANGED: added `&& !data` to ensure that if the teacher already has data on screen, a single failed background request won't wipe the dashboard.
+  if (isError && !data) {
     return (
       <div className="mx-auto mt-24 flex max-w-md flex-col items-center gap-4 text-center">
         <div className="flex size-11 items-center justify-center rounded-full bg-danger-soft text-danger">
@@ -41,6 +43,9 @@ export function MonitoringView({ examId }: { examId: string }) {
       </div>
     );
   }
+
+  // ADDED: fallback to prevent rendering the main view with null data
+  if (!data) return <MonitoringSkeleton />;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-6">

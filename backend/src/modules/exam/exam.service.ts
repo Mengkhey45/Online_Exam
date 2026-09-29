@@ -1,4 +1,4 @@
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, and } from "drizzle-orm";
 import { scopedDb } from "@/db/scoped";
 import {
   attempts,
@@ -32,13 +32,31 @@ export type ExamSummary = {
   totalStudents: number;
 };
 
+/** loads an exam only if it belongs to the calling teacher. */
+export async function getOwnedExamRow(ctx: RequestContext, id: string) {
+  const sdb = scopedDb(ctx.organizationId);
+  const [exam] = await sdb.db
+    .select()
+    .from(exams)
+    .where(sdb.where(exams, and (
+      eq(exams.id, id),
+      eq(exams.createdBy, ctx.userId)
+    )))
+    .limit(1);
+
+  if (!exam) throw notFound("Exam not found");
+  return exam;
+}
+
 /** Dashboard feed: groups, each with a summary table of exams (frontend §7). */
 export async function listGroupsWithExams(ctx: RequestContext) {
   const sdb = scopedDb(ctx.organizationId);
 
   const [groupRows, examRows, totalStudentsRow] = await Promise.all([
-    sdb.db.select().from(examGroups).where(sdb.where(examGroups)),
-    sdb.db.select().from(exams).where(sdb.where(exams)),
+    // changed: filter groups by owner
+    sdb.db.select().from(examGroups).where(sdb.where(examGroups, eq(examGroups.createdBy, ctx.userId))),
+    // changed: filter exams by owner
+    sdb.db.select().from(exams).where(sdb.where(exams, eq(exams.createdBy, ctx.userId))),
     sdb.db.select({ n: count() }).from(students).where(sdb.where(students)),
   ]);
   const totalStudents = totalStudentsRow[0]?.n ?? 0;
@@ -105,13 +123,26 @@ export async function createGroup(
   input: CreateExamGroupInput,
 ) {
   const sdb = scopedDb(ctx.organizationId);
-  const row = { id: newId("grp"), name: input.name };
+  // changed: inject createdBy
+  const row = { id: newId("grp"), name: input.name, createdBy: ctx.userId };
   await sdb.db.insert(examGroups).values(sdb.withOrg(row));
   return { id: row.id, name: row.name, exams: [] };
 }
 
 export async function createExam(ctx: RequestContext, input: CreateExamInput) {
   const sdb = scopedDb(ctx.organizationId);
+
+  // changed: verify they own the group they are adding the exam to
+  const [group] = await sdb.db
+    .select({ id: examGroups.id })
+    .from(examGroups)
+    .where(sdb.where(examGroups, and(
+      eq(examGroups.id, input.groupId),
+      eq(examGroups.createdBy, ctx.userId)
+    )))
+    .limit(1);
+  if (!group) throw notFound("Exam group not found");
+
   const examId = newId("exm");
   await sdb.db.insert(exams).values(
     sdb.withOrg({
@@ -119,6 +150,8 @@ export async function createExam(ctx: RequestContext, input: CreateExamInput) {
       groupId: input.groupId,
       title: input.title,
       examKey: newExamKey(),
+      // changed: inject createdBy
+      createdBy: ctx.userId,
     }),
   );
   // Every new exam opens with one empty section (matches the builder).
@@ -161,12 +194,14 @@ export async function patchExam(
   input: PatchExamInput,
 ): Promise<Exam> {
   const sdb = scopedDb(ctx.organizationId);
-  const [exam] = await sdb.db
-    .select()
-    .from(exams)
-    .where(sdb.where(exams, eq(exams.id, id)))
-    .limit(1);
-  if (!exam) throw notFound("Exam not found");
+  // const [exam] = await sdb.db
+  //   .select()
+  //   .from(exams)
+  //   .where(sdb.where(exams, eq(exams.id, id)))
+  //   .limit(1);
+  // if (!exam) throw notFound("Exam not found");
+  // CHANGED: use the gatekeeper helper to fetch the exam
+  const exam = await getOwnedExamRow(ctx, id);
 
   // Published exams are immutable here — editing creates a new version, which
   // is Mengkhey's publish module (AGENTS §6).
@@ -201,7 +236,11 @@ export async function patchExam(
   await sdb.db
     .update(exams)
     .set(header)
-    .where(sdb.where(exams, eq(exams.id, id)));
+    // CHANGED: add createBy to the update WHERE clause for double security
+    .where(sdb.where(exams, and(
+      eq(exams.id, id),
+      eq(exams.createdBy, ctx.userId)
+    )));
 
   if (input.sections) {
     await replaceContent(ctx, id, input.sections);
@@ -266,6 +305,9 @@ export async function exportResultsCsv(
   ctx: RequestContext,
   examId: string,
 ): Promise<string> {
+  // CHANGED: check ownership before running the export query
+  await getOwnedExamRow(ctx, examId);
+  
   const sdb = scopedDb(ctx.organizationId);
   const rows = await sdb.db
     .select({

@@ -33,7 +33,10 @@ export function useMonitoring(examId: string) {
     queryKey: monitoringKeys.board(examId),
     queryFn: ({ signal }) => fetchMonitoring(examId, signal),
     // Live board — refresh periodically.
-    refetchInterval: 15_000,
+    // CHANGED: 15_000=>4_000
+    refetchInterval: 4_000,
+    // ADDED: Keeps fetching data even if the teacher has another tab open
+    refetchIntervalInBackground: true,
   });
 }
 

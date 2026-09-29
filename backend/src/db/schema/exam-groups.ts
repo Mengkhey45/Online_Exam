@@ -6,6 +6,7 @@ export const examGroups = pgTable("exam_groups", {
   organizationId: text().notNull(),
   name: text().notNull(),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  createdBy: text("created_by").notNull(),
 });
 
 export type ExamGroupRow = typeof examGroups.$inferSelect;
