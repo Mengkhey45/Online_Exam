@@ -15,6 +15,7 @@ import { autoScore } from "@/modules/grading/scoring";
 import { buildPresentedLayout } from "./present";
 import { mergeAnswers } from "./sync";
 import type { CreateAttemptInput } from "./attempt.schema";
+import { assertCanMonitorAttempt, assertCanMonitorExam } from "@/lib/access";
 
 function blockIndex(exam: Exam): Map<string, Block> {
   const map = new Map<string, Block>();
@@ -209,8 +210,8 @@ export async function lockAttempt(
 }
 
 export async function unlockAttempt(ctx: RequestContext, attemptId: string) {
+  await assertCanMonitorAttempt(ctx, attemptId);
   const sdb = scopedDb(ctx.organizationId);
-  await loadAttempt(ctx, attemptId);
   await sdb.db
     .update(attempts)
     .set({ status: "in_progress", lockReason: null })
@@ -223,6 +224,7 @@ export async function unlockAttempt(ctx: RequestContext, attemptId: string) {
  * 3.5). Progress, time left, and flag counts per attempt.
  */
 export async function getMonitoring(ctx: RequestContext, examId: string) {
+  await assertCanMonitorExam(ctx, examId);
   const sdb = scopedDb(ctx.organizationId);
   const [exam] = await sdb.db
     .select({ title: exams.title })

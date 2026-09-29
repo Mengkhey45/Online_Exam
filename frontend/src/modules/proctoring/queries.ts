@@ -79,3 +79,35 @@ export function useUnlockAttempt(examId: string) {
       qc.invalidateQueries({ queryKey: monitoringKeys.board(examId) }),
   });
 }
+
+
+const incidentAckSchema = z.object({ id: z.string() });
+
+export function useRecordIncident(attemptId: string | null) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    // accepts an optional note string. if undefined, defaults to a standard message
+    mutationFn: async (note: string) => {
+      if (!attemptId) throw new Error("No attempt ID provided");
+
+      if (USE_MOCKS) {
+        await new Promise((r) => setTimeout(r, 300));
+        return { id: "mock-inc-123"};
+      }
+
+      // POSTs to the proctoringRouter endpoint
+      return api.post(
+        `/attempts/${attemptId}/incident`,
+        { note: note || "Flagged by teacher during live monitoring" },
+        incidentAckSchema
+      );
+    },
+    onSuccess: () => {
+      // refresh the timeline to show the new incident if it's rendered there
+      if (attemptId) {
+        qc.invalidateQueries({ queryKey: monitoringKeys.activity(attemptId) });
+      }
+    },
+  });
+}

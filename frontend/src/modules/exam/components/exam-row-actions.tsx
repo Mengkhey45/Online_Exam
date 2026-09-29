@@ -52,7 +52,7 @@ export function ExamRowActions({ exam }: { exam: ExamSummary }) {
           Import from PDF
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href={`/monitoring`} />}>
+        <DropdownMenuItem render={<Link href={`/monitoring/${exam.id}`} />}>
           <Activity />
           Monitor
         </DropdownMenuItem>

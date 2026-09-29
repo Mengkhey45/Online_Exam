@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, Library, Users, Activity, LogOut } from "lucide-react";
+import { LayoutGrid, Library, Users, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/lib/auth/auth-provider";
@@ -20,7 +20,6 @@ const NAV = [
   { href: "/dashboard", label: "Exams", Icon: LayoutGrid },
   { href: "/bank", label: "Question bank", Icon: Library },
   { href: "/roster", label: "Roster", Icon: Users },
-  { href: "/monitoring", label: "Monitoring", Icon: Activity },
 ];
 
 /** Top-bar chrome for teacher screens. Slim and scannable (AGENTS §1). */
