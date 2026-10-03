@@ -115,6 +115,7 @@ const attempt = attemptSchema.parse({
     q_bin: ["o_n", "o_log", "o_1", "o_nlogn"],
     q_stable: ["o_quick", "o_merge", "o_heap", "o_ins"],
   },
+  status: "in_progress",
   startedAt: new Date().toISOString(),
   // 47 minutes remaining, so the amber-under-10 threshold is reachable in demo.
   expiresAt: new Date(Date.now() + 47 * 60_000).toISOString(),

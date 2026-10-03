@@ -101,6 +101,7 @@ export async function getSitting(ctx: RequestContext, attemptId: string) {
     examVersionId: attempt.examVersionId,
     presentedOrder: attempt.presentedOrder,
     presentedOptions: attempt.presentedOptions,
+    status: attempt.status,
     startedAt: attempt.startedAt.toISOString(),
     expiresAt: attempt.expiresAt.toISOString(),
   };

@@ -104,6 +104,7 @@ export const attemptSchema = z.object({
   presentedOptions: z.record(z.string(), z.array(z.string())),
   startedAt: z.string(),
   expiresAt: z.string(),
+  status: z.enum(["in_progress", "submitted", "locked", "disconnected"]),
 });
 export type Attempt = z.infer<typeof attemptSchema>;
 

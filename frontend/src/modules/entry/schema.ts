@@ -29,8 +29,7 @@ export type EntryExam = z.infer<typeof entryExamSchema>;
 
 export const startedAttemptSchema = z.object({
   attemptId: z.string(),
-  // The attempt-session token that authorises the sitting routes (§7). Absent
-  // in mock mode, where the sitting page reads fixtures.
-  attemptToken: z.string().optional(),
+  // The attempt-session token that authorises the sitting routes (§7).
+  attemptToken: z.string().min(1),
 });
 export type StartedAttempt = z.infer<typeof startedAttemptSchema>;

@@ -1,5 +1,8 @@
 "use client";
 
+
+import { useState } from "react";
+import { ApiError } from "@/lib/api/errors";
 import { toast } from "sonner";
 import { CheckCircle2, Flag, CircleDashed } from "lucide-react";
 import {
@@ -13,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { isAnswered } from "../select";
 import { useRuntime } from "../store";
+import { submitAttempt, syncAnswers } from "../queries";
+
 
 /**
  * Submit confirmation (AGENTS §7). Lists unanswered and flagged counts before a
@@ -21,11 +26,18 @@ import { useRuntime } from "../store";
 export function SubmitDialog({
   open,
   onOpenChange,
+  attemptId,
+  onSubmitted,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  attemptId: string;
+  onSubmitted: () => void;
 }) {
   const { items, answers, goTo } = useRuntime();
+
+  // ADDED: Track if the submit request is running
+  const [pending, setPending] = useState(false);
 
   const questions = items.filter((i) => i.number !== undefined);
   const unanswered = questions.filter(
@@ -39,6 +51,25 @@ export function SubmitDialog({
     const index = items.findIndex((i) => i.questionId === questionId);
     if (index >= 0) goTo(index);
     onOpenChange(false);
+  }
+
+  // ADDED: Real submit handler
+  async function confirmSubmit() {
+    setPending(true);
+    try {
+      await syncAnswers(attemptId, Object.values(answers).filter(Boolean));
+      await submitAttempt(attemptId);
+      onOpenChange(false);
+      onSubmitted();
+    } catch (e) {
+      toast.error(
+        e instanceof ApiError
+          ? e.message
+          : "Couldn’t submit. Check your connection and try again."
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -74,17 +105,21 @@ export function SubmitDialog({
           />
         </div>
 
+        {/* CHANGED: replace the old buttons to use pending state and confirmSubmit */}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
             Keep working
           </Button>
-          <Button
+          {/* <Button
             onClick={() => {
               onOpenChange(false);
               toast.success("Exam submitted");
             }}
           >
             Submit exam
+          </Button> */}
+          <Button onClick={confirmSubmit} disabled={pending}>
+            {pending ? "Submitting…" : "Submit exam"}
           </Button>
         </DialogFooter>
       </DialogContent>

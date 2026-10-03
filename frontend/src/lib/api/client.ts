@@ -37,6 +37,12 @@ type RequestOptions<T> = {
 const errorBodySchema = z.object({
   code: z.string().optional(),
   message: z.string().optional(),
+  error: z
+    .object({
+      code: z.string().optional(),
+      message: z.string().optional(),
+    })
+    .optional(),
 });
 
 async function request<T>(path: string, opts: RequestOptions<T>): Promise<T> {
@@ -73,9 +79,9 @@ async function request<T>(path: string, opts: RequestOptions<T>): Promise<T> {
     }
     throw new ApiError({
       status: res.status,
-      code: parsed.code ?? `http_${res.status}`,
+      code: parsed.error?.code ?? parsed.code ?? `http_${res.status}`,
       message:
-        parsed.message ?? defaultMessageForStatus(res.status),
+        parsed.error?.message ?? parsed.message ?? defaultMessageForStatus(res.status),
     });
   }
 

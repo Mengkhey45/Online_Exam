@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { ApiError } from "@/lib/api/errors";
@@ -19,6 +20,7 @@ import { LockoutOverlay } from "./lockout-overlay";
  * server-rendered (§8). The whole exam loads once, then everything is local.
  */
 export function RuntimeView({ attemptId }: { attemptId: string }) {
+  const [submitted, setSubmitted] = useState(false);
   const { data: sitting, isPending, isError, error, refetch } =
     useSitting(attemptId);
 
@@ -46,14 +48,27 @@ export function RuntimeView({ attemptId }: { attemptId: string }) {
     );
   }
 
+  if (submitted || sitting.attempt.status === "submitted") {
+    return <CompletionScreen title={sitting.exam.title} />;
+  }
+
   return (
     <RuntimeProvider attemptId={attemptId} sitting={sitting}>
-      <RuntimeShell attemptId={attemptId} />
+      <RuntimeShell
+        attemptId={attemptId}
+        onSubmitted={() => setSubmitted(true)}
+      />
     </RuntimeProvider>
   );
 }
 
-function RuntimeShell({ attemptId }: { attemptId: string }) {
+function RuntimeShell({
+  attemptId,
+  onSubmitted,
+}: {
+  attemptId: string;
+  onSubmitted: () => void;
+}) {
   const { sitting } = useRuntime();
   const [submitOpen, setSubmitOpen] = useState(false);
   const { lock, clear } = useLockout(sitting.exam.security === "medium");
@@ -71,12 +86,42 @@ function RuntimeShell({ attemptId }: { attemptId: string }) {
         </main>
       </div>
 
-      <SubmitDialog open={submitOpen} onOpenChange={setSubmitOpen} />
+      <SubmitDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        attemptId={attemptId}
+        onSubmitted={onSubmitted}
+      />
 
       {lock ? (
         <LockoutOverlay reason={lock.reason} onResume={() => clear()} />
       ) : null}
     </div>
+  );
+}
+
+function CompletionScreen({ title }: { title: string }) {
+  const router = useRouter();
+
+  return (
+    <main className="flex min-h-svh items-center justify-center bg-paper px-6 py-10">
+      <section className="w-full max-w-md space-y-6 rounded-lg border border-rule bg-surface p-8 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+          <span className="text-xl" aria-hidden>
+            ✓
+          </span>
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold text-ink">Congratulations!</h1>
+          <p className="text-sm leading-6 text-ink-2">
+            You have finished {title}.
+          </p>
+        </div>
+        <Button className="w-full" onClick={() => router.push("/enter")}>
+          Return to exam entry
+        </Button>
+      </section>
+    </main>
   );
 }
 

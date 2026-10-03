@@ -103,6 +103,7 @@ export const attemptSchema = z.object({
   examVersionId: z.string(),
   presentedOrder: z.record(z.string(), z.array(z.string())), // sectionId -> questionIds
   presentedOptions: z.record(z.string(), z.array(z.string())), // questionId -> optionIds
+  status: z.enum(["in_progress", "submitted", "locked", "disconnected"]),
   startedAt: z.string(),
   expiresAt: z.string(),
 });
