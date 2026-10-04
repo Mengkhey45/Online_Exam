@@ -44,6 +44,7 @@ export type Confidence = z.infer<typeof confidenceSchema>;
 
 export const blockSchema = z.object({
   id: z.string(),
+  sourceQuestionId: z.string().optional(),
   type: blockTypeSchema,
   stem: z.string(), // LaTeX in $…$; blanks as {{blankId}}
   marks: z.number(),

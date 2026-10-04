@@ -6,6 +6,7 @@ import {
   examQuestions,
   examSections,
   exams,
+  questionBank,
   students,
 } from "@/db/schema";
 import { newExamKey, newId } from "@/lib/ids";
@@ -281,6 +282,7 @@ async function replaceContent(
           id: b.id,
           examId,
           sectionId: s.id,
+          sourceQuestionId: b.sourceQuestionId ?? null,
           type: b.type,
           stem: b.stem,
           marks: b.marks,
@@ -296,6 +298,19 @@ async function replaceContent(
           position: bi,
         }),
       );
+      if (!b.sourceQuestionId && b.type !== "content" && b.type !== "section") {
+        await sdb.db.insert(questionBank).values(sdb.withOrg({
+          id: `bank_${b.id}`,
+          createdBy: ctx.userId,
+          bankName: "Untitled",
+          subject: "Untitled",
+          difficulty: "medium" as const,
+          block: b,
+        })).onConflictDoUpdate({
+          target: questionBank.id,
+          set: { block: b, updatedAt: new Date() },
+        });
+      }
     }
   }
 }

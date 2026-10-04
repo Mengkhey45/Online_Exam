@@ -19,6 +19,7 @@ import { gradingRouter } from "@/modules/grading";
 import { proctoringRouter } from "@/modules/proctoring";
 import { aiImportRouter } from "@/modules/ai-import";
 import { registrationRouter } from "@/modules/registration";
+import { bankRouter } from "@/modules/bank";
 
 /** Assemble the API server (AGENTS §4). Wiring only — no business logic here. */
 export function createApp(): Express {
@@ -68,6 +69,7 @@ export function createApp(): Express {
   app.use(authenticate);
   app.use(authRouter);
   app.use(organizationRouter);
+  app.use(bankRouter);
   app.use(teamRouter);
   app.use(rosterRouter);
   app.use(examRouter);

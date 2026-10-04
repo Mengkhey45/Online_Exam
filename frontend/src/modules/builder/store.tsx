@@ -90,6 +90,18 @@ function reducer(state: BuilderState, action: BuilderAction): BuilderState {
         dirty: true,
       };
 
+    case "add_existing_block":
+      return {
+        ...state,
+        sections: mapSection(state, action.sectionId, (s) => ({
+          ...s,
+          blocks: [...s.blocks, action.block],
+        })),
+        selectedBlockId: action.block.id,
+        selectedSectionId: null,
+        dirty: true,
+      };
+
     case "set_sections":
       return { ...state, sections: action.sections, dirty: true };
 

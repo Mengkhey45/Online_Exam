@@ -18,3 +18,4 @@ export * from "./proctoring-events";
 export * from "./incidents";
 export * from "./jobs";
 export * from "./imports";
+export * from "./question-bank";

@@ -21,6 +21,7 @@ export type BuilderAction =
   | { kind: "select_block"; blockId: string | null }
   | { kind: "select_section"; sectionId: string | null }
   | { kind: "add_section" }
+  | { kind: "add_existing_block"; sectionId: string; block: Block }
   | { kind: "set_sections"; sections: Section[] } // drag reorder result
   | { kind: "update_section"; sectionId: string; patch: Partial<Section> }
   | { kind: "remove_section"; sectionId: string }
