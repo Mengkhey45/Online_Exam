@@ -38,6 +38,25 @@ function mapSection(
 }
 
 function reducer(state: BuilderState, action: BuilderAction): BuilderState {
+  if (
+    state.status === "published" &&
+    [
+      "restore_draft",
+      "set_title",
+      "add_section",
+      "set_sections",
+      "update_section",
+      "remove_section",
+      "add_block",
+      "update_block",
+      "remove_block",
+      "move_block",
+      "toggle_reviewed",
+    ].includes(action.kind)
+  ) {
+    return state;
+  }
+
   switch (action.kind) {
     case "restore_draft":
       return {
@@ -194,6 +213,11 @@ export function BuilderProvider({
 
   useEffect(() => {
     try {
+      if (initial.status === "published") {
+        sessionStorage.removeItem(`exam-builder:${initial.examId}`);
+        setHydrated(true);
+        return;
+      }
       const raw = sessionStorage.getItem(`exam-builder:${initial.examId}`);
       if (raw) {
         const draft = JSON.parse(raw) as {

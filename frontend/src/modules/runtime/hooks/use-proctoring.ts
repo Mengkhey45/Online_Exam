@@ -18,7 +18,11 @@ const FLUSH_INTERVAL_MS = 10_000;
  * Refs only, no state: telemetry is fire-and-forget and must never trigger a
  * re-render of the exam the student is sitting.
  */
-export function useProctoring(attemptId: string, enabled: boolean): void {
+export function useProctoring(
+  attemptId: string,
+  enabled: boolean,
+  blockClipboard = false,
+): void {
   const queue = useRef<ProctoringEvent[]>([]);
   const blurStart = useRef<number | null>(null);
   const wasFullscreen = useRef(false);
@@ -70,6 +74,10 @@ export function useProctoring(attemptId: string, enabled: boolean): void {
     const onPaste = (e: ClipboardEvent) => {
       const text = e.clipboardData?.getData("text") ?? "";
       enqueue("paste", { charCount: text.length });
+      if (blockClipboard) e.preventDefault();
+    };
+    const onClipboardWrite = (e: ClipboardEvent) => {
+      if (blockClipboard) e.preventDefault();
     };
 
     // Send what we have before the tab is backgrounded or closed.
@@ -81,6 +89,8 @@ export function useProctoring(attemptId: string, enabled: boolean): void {
     window.addEventListener("focus", onFocus);
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("paste", onPaste, true);
+    document.addEventListener("copy", onClipboardWrite, true);
+    document.addEventListener("cut", onClipboardWrite, true);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onVisibility);
     const interval = window.setInterval(() => void flush(), FLUSH_INTERVAL_MS);
@@ -90,10 +100,12 @@ export function useProctoring(attemptId: string, enabled: boolean): void {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("paste", onPaste, true);
+      document.removeEventListener("copy", onClipboardWrite, true);
+      document.removeEventListener("cut", onClipboardWrite, true);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onVisibility);
       window.clearInterval(interval);
       void flush();
     };
-  }, [attemptId, enabled]);
+  }, [attemptId, enabled, blockClipboard]);
 }

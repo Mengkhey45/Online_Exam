@@ -1,19 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api/client";
+import { examResultsSchema } from "./schema";
 import type { ExamResults } from "./schema";
 
-/**
- * Released results. No backend endpoint yet, so this resolves fixtures. When a
- * results API lands, swap for api.get(`/exams/${examId}/results`, …).
- */
-async function fetchResults(): Promise<ExamResults> {
-  const { mockResults } = await import("./mocks");
-  await new Promise((r) => setTimeout(r, 250));
-  return mockResults;
+async function fetchResults(
+  examId: string,
+  filters: { classId?: string; subject?: string },
+  signal?: AbortSignal,
+): Promise<ExamResults> {
+  const params = new URLSearchParams();
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.subject) params.set("subject", filters.subject);
+  const query = params.toString();
+  return api.get(
+    `/exams/${examId}/results${query ? `?${query}` : ""}`,
+    examResultsSchema,
+    signal,
+  );
 }
 
-export function useExamResults(examId: string) {
+export function useExamResults(
+  examId: string,
+  filters: { classId?: string; subject?: string } = {},
+) {
   return useQuery({
-    queryKey: ["results", examId],
-    queryFn: fetchResults,
+    queryKey: ["results", examId, filters],
+    queryFn: ({ signal }) => fetchResults(examId, filters, signal),
   });
 }

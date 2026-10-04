@@ -1,10 +1,11 @@
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, isNotNull } from "drizzle-orm";
 import { env } from "@/config/env";
 import { scopedDb } from "@/db/scoped";
 import { classes, exams, organizations, students, users } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { conflict, forbidden, notFound } from "@/lib/errors";
 import type { RequestContext } from "@/middleware/context";
+import { getResults } from "@/modules/grading";
 import type {
   AddStudentInput,
   CreateClassInput,
@@ -23,7 +24,7 @@ export function getCapabilities() {
 /** Compact live counts for the administration landing page. */
 export async function getOrganizationDashboard(ctx: RequestContext) {
   const sdb = scopedDb(ctx.organizationId);
-  const [[teachers], [classCount], [studentCount], [examCount]] = await Promise.all([
+  const [[teachers], [classCount], [studentCount], [examCount], releasedExamRows] = await Promise.all([
     sdb.db
       .select({ value: count() })
       .from(users)
@@ -31,13 +32,24 @@ export async function getOrganizationDashboard(ctx: RequestContext) {
     sdb.db.select({ value: count() }).from(classes).where(sdb.where(classes)),
     sdb.db.select({ value: count() }).from(students).where(sdb.where(students)),
     sdb.db.select({ value: count() }).from(exams).where(sdb.where(exams)),
+    sdb.db
+      .select({ id: exams.id })
+      .from(exams)
+      .where(sdb.where(exams, isNotNull(exams.resultsReleasedAt))),
   ]);
+
+  const releasedResults = await Promise.all(
+    releasedExamRows
+      .filter((exam): exam is { id: string } => Boolean(exam.id))
+      .map((exam) => getResults(ctx, exam.id)),
+  );
 
   return {
     teachers: teachers?.value ?? 0,
     classes: classCount?.value ?? 0,
     students: studentCount?.value ?? 0,
     exams: examCount?.value ?? 0,
+    releasedResults,
   };
 }
 

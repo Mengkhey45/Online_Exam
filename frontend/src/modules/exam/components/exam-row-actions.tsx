@@ -11,6 +11,7 @@ import {
   Trophy,
   Copy,
   Archive,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,8 +41,8 @@ export function ExamRowActions({ exam }: { exam: ExamSummary }) {
       />
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuItem render={<Link href={`/builder/${exam.id}`} />}>
-          <Pencil />
-          Edit questions
+          {exam.status === "published" ? <Eye /> : <Pencil />}
+          {exam.status === "published" ? "View questions" : "Edit questions"}
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href={`/configure/${exam.id}`} />}>
           <Settings2 />

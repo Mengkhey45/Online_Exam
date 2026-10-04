@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ConfigSection, Field, ToggleField } from "../config-fields";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const LEVELS: {
   value: SecurityLevel;
@@ -80,23 +85,46 @@ export function CheatPreventionTab() {
   );
 }
 
-function SwitchField({ name, label, description }: { name: string; label: string; description?: string }) {
+function SwitchField({
+  name,
+  label,
+  description,
+  disabled = false,
+  disabledReason,
+}: {
+  name: string;
+  label: string;
+  description?: string;
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
   const { control } = useFormContext<ExamConfig>();
-  return (
+  const field = (
     <ToggleField label={label} description={description}>
       <Controller
         control={control}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         name={name as any}
-        render={({ field }) => (
+        render={({ field: controllerField }) => (
           <Switch
-            checked={Boolean(field.value)}
-            onCheckedChange={field.onChange}
+            checked={Boolean(controllerField.value)}
+            onCheckedChange={controllerField.onChange}
             aria-label={label}
+            disabled={disabled}
           />
         )}
       />
     </ToggleField>
+  );
+
+  if (!disabled || !disabledReason) return field;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="block" tabIndex={0} />}>
+        {field}
+      </TooltipTrigger>
+      <TooltipContent>{disabledReason}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -143,8 +171,20 @@ function HighSettings() {
       <div className="space-y-2">
         <SwitchField name="cheatPrevention.high.requireFullscreen" label="Lock to fullscreen" description="Leaving fullscreen pauses the exam." />
         <SwitchField name="cheatPrevention.high.blockCopyPaste" label="Block copy and paste" />
-        <SwitchField name="cheatPrevention.high.singleDevice" label="Single device only" description="Prevent opening the exam on a second device." />
-        <SwitchField name="cheatPrevention.high.requireCamera" label="Require camera" description="Students share their camera for the sitting." />
+        <SwitchField
+          name="cheatPrevention.high.singleDevice"
+          label="Single device only"
+          description="Prevent opening the exam on a second device."
+          disabled
+          disabledReason="Single-device enforcement is coming soon."
+        />
+        <SwitchField
+          name="cheatPrevention.high.requireCamera"
+          label="Require camera"
+          description="Students share their camera for the sitting."
+          disabled
+          disabledReason="Live camera monitoring is coming soon."
+        />
       </div>
     </ConfigSection>
   );

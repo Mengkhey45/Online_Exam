@@ -60,6 +60,7 @@ export function useSitting(attemptId: string) {
     retry: 3,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchInterval: 3_000,
   });
 }
 
@@ -89,6 +90,14 @@ export async function syncAnswers(
 }
 
 const eventsAckSchema = z.object({ stored: z.number() });
+
+const lockAckSchema = z.object({ ok: z.boolean() });
+
+export async function lockAttempt(attemptId: string, reason: string): Promise<void> {
+  if (USE_MOCKS) return;
+  const token = getRequiredAttemptToken(attemptId);
+  await api.post(`/attempts/${attemptId}/lock`, { reason }, lockAckSchema, token);
+}
 
 /**
  * Send batched proctoring telemetry (AGENTS §7). Fire-and-forget from the

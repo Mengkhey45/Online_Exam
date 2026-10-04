@@ -70,7 +70,7 @@ function defaultCheatPrevention(level: SecurityLevel): CheatPrevention {
     high: {
       requireFullscreen: true,
       blockCopyPaste: true,
-      singleDevice: true,
+      singleDevice: false,
       requireCamera: false,
     },
   };
@@ -90,7 +90,15 @@ export async function getExamConfig(
 
   const extras = (exam.config ?? {}) as ConfigExtras;
   const cheatPrevention = extras.cheatPrevention
-    ? { ...extras.cheatPrevention, level: exam.security }
+    ? {
+        ...extras.cheatPrevention,
+        level: exam.security,
+        high: {
+          ...extras.cheatPrevention.high,
+          singleDevice: false,
+          requireCamera: false,
+        },
+      }
     : defaultCheatPrevention(exam.security);
 
   return {
@@ -133,7 +141,14 @@ export async function saveExamConfig(
     ...existingExtras,
     studentInfo: input.studentInfo,
     workspace: input.workspace,
-    cheatPrevention: input.cheatPrevention,
+    cheatPrevention: {
+      ...input.cheatPrevention,
+      high: {
+        ...input.cheatPrevention.high,
+        singleDevice: false,
+        requireCamera: false,
+      },
+    },
   };
 
   await sdb.db

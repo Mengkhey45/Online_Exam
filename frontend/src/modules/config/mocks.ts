@@ -59,7 +59,7 @@ export const mockConfig: ExamConfig = examConfigSchema.parse({
     high: {
       requireFullscreen: true,
       blockCopyPaste: true,
-      singleDevice: true,
+      singleDevice: false,
       requireCamera: false,
     },
   },

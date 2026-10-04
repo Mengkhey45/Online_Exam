@@ -14,6 +14,7 @@ import { AnswerRail } from "./answer-rail";
 import { QuestionPane } from "./question-pane";
 import { SubmitDialog } from "./submit-dialog";
 import { LockoutOverlay } from "./lockout-overlay";
+import { FullscreenGate } from "./fullscreen-gate";
 
 /**
  * Student runtime (AGENTS §7, the critical screen). Fully client-side — never
@@ -71,32 +72,52 @@ function RuntimeShell({
 }) {
   const { sitting } = useRuntime();
   const [submitOpen, setSubmitOpen] = useState(false);
-  const { lock, clear } = useLockout(sitting.exam.security === "medium");
+  const { lock, clear, lockNow } = useLockout(
+    sitting.exam.security === "medium" || sitting.exam.security === "high",
+    attemptId,
+    sitting.attempt.status === "locked",
+    sitting.exam.security === "high",
+  );
 
   // Record proctoring telemetry for supervised exams (rule 3.4 — evidence only).
-  useProctoring(attemptId, sitting.exam.security !== "low");
+  useProctoring(
+    attemptId,
+    sitting.exam.security !== "low",
+    sitting.exam.security === "high",
+  );
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-paper">
-      <RuntimeTopbar onSubmit={() => setSubmitOpen(true)} />
-      <div className="flex min-h-0 flex-1">
-        <AnswerRail />
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <QuestionPane />
-        </main>
+    <FullscreenGate
+      key={sitting.attempt.status}
+      security={sitting.exam.security}
+      locked={sitting.exam.security === "high" && sitting.attempt.status === "locked"}
+      onExit={
+        sitting.exam.security === "high"
+          ? () => lockNow("Fullscreen was exited. Waiting for teacher unlock.")
+          : undefined
+      }
+    >
+      <div className="flex h-svh flex-col overflow-hidden bg-paper">
+        <RuntimeTopbar onSubmit={() => setSubmitOpen(true)} />
+        <div className="flex min-h-0 flex-1">
+          <AnswerRail />
+          <main className="min-w-0 flex-1 overflow-y-auto">
+            <QuestionPane />
+          </main>
+        </div>
+
+        <SubmitDialog
+          open={submitOpen}
+          onOpenChange={setSubmitOpen}
+          attemptId={attemptId}
+          onSubmitted={onSubmitted}
+        />
+
+        {lock ? (
+          <LockoutOverlay reason={lock.reason} onResume={() => clear()} />
+        ) : null}
       </div>
-
-      <SubmitDialog
-        open={submitOpen}
-        onOpenChange={setSubmitOpen}
-        attemptId={attemptId}
-        onSubmitted={onSubmitted}
-      />
-
-      {lock ? (
-        <LockoutOverlay reason={lock.reason} onResume={() => clear()} />
-      ) : null}
-    </div>
+    </FullscreenGate>
   );
 }
 

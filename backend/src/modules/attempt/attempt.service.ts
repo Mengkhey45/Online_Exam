@@ -122,6 +122,9 @@ export async function syncAnswers(
   if (attempt.status === "submitted") {
     throw conflict("ATTEMPT_SUBMITTED", "This attempt is already submitted.");
   }
+  if (attempt.status === "locked") {
+    throw conflict("ATTEMPT_LOCKED", "This attempt is paused until a teacher unlocks it.");
+  }
   const exam = await loadVersionSnapshot(ctx, attempt.examVersionId);
   const blocks = blockIndex(exam);
 
@@ -188,7 +191,13 @@ export async function syncAnswers(
 
 export async function submitAttempt(ctx: RequestContext, attemptId: string) {
   const sdb = scopedDb(ctx.organizationId);
-  await loadAttempt(ctx, attemptId);
+  const attempt = await loadAttempt(ctx, attemptId);
+  if (attempt.status === "locked") {
+    throw conflict("ATTEMPT_LOCKED", "This attempt is paused until a teacher unlocks it.");
+  }
+  if (attempt.status === "submitted") {
+    throw conflict("ATTEMPT_SUBMITTED", "This attempt is already submitted.");
+  }
   await sdb.db
     .update(attempts)
     .set({ status: "submitted", submittedAt: new Date() })

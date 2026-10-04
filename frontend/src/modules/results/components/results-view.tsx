@@ -2,8 +2,16 @@
 
 import { toast } from "sonner";
 import { Download, BarChart3, AlertCircle, RefreshCw, Trophy } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -19,7 +27,12 @@ import type { ExamResults } from "../schema";
 
 /** Released exam results (parity with the examroom sample). */
 export function ResultsView({ examId }: { examId: string }) {
-  const { data, isPending, isError, refetch } = useExamResults(examId);
+  const [classId, setClassId] = useState("all");
+  const [subject, setSubject] = useState("all");
+  const { data, isPending, isError, refetch } = useExamResults(examId, {
+    classId: classId === "all" ? undefined : classId,
+    subject: subject === "all" ? undefined : subject,
+  });
 
   if (isPending) {
     return (
@@ -70,11 +83,33 @@ export function ResultsView({ examId }: { examId: string }) {
             {data.title}
           </h1>
           <p className="mt-0.5 text-sm text-ink-2">
-            {data.totalStudents} students · {data.notSubmitted} not submitted ·
+            {data.subject} · {data.totalStudents} students · {data.notSubmitted} not submitted ·
             pass mark {data.passMarkPct}%
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Select value={classId} onValueChange={(value) => setClassId(value ?? "all")}>
+            <SelectTrigger className="w-40" aria-label="Filter by class">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All classes</SelectItem>
+              {data.classes.map((item) => (
+                <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={subject} onValueChange={(value) => setSubject(value ?? "all")}>
+            <SelectTrigger className="w-40" aria-label="Filter by subject">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All subjects</SelectItem>
+              {data.subjects.map((item) => (
+                <SelectItem key={item} value={item}>{item}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={() => toast.success("Results exported")}>
             <Download />
             Export results
@@ -120,7 +155,7 @@ export function ResultsView({ examId }: { examId: string }) {
                   <TableCell>
                     <div className="font-medium text-ink">{r.name}</div>
                     <div className="font-mono text-xs text-ink-3 tabular">
-                      {r.studentRef}
+                      {r.studentRef} · {r.className}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono text-ink-2 tabular">
