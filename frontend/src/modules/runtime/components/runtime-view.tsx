@@ -56,6 +56,7 @@ export function RuntimeView({ attemptId }: { attemptId: string }) {
   return (
     <RuntimeProvider attemptId={attemptId} sitting={sitting}>
       <RuntimeShell
+        key={sitting.attempt.status}
         attemptId={attemptId}
         onSubmitted={() => setSubmitted(true)}
       />
@@ -75,7 +76,6 @@ function RuntimeShell({
   const { lock, clear, lockNow } = useLockout(
     sitting.exam.security === "medium" || sitting.exam.security === "high",
     attemptId,
-    sitting.attempt.status === "locked",
     sitting.exam.security === "high",
   );
 

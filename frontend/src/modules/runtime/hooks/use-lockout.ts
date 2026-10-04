@@ -13,7 +13,6 @@ export type Lockout = { reason: string };
 export function useLockout(
   enabled: boolean,
   attemptId: string,
-  serverLocked: boolean,
   persistLock = false,
 ) {
   const [lock, setLock] = useState<Lockout | null>(null);
@@ -36,12 +35,6 @@ export function useLockout(
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [enabled, lockNow]);
-
-  useEffect(() => {
-    if (!persistLock) return;
-    if (!serverLocked) setLock(null);
-    else setLock((current) => current ?? { reason: "The exam is paused while your teacher reviews the activity." });
-  }, [persistLock, serverLocked]);
 
   return { lock, lockNow, clear: () => setLock(null) };
 }
