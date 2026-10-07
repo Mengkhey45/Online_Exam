@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { getAttemptToken } from "@/lib/auth/attempt-session";
 import {
   attemptSchema,
@@ -33,8 +34,20 @@ async function fetchSitting(
   }
   // Use the attempt token explicitly — this route is authorised by it, not by
   // the teacher's Supabase session the AuthProvider keeps globally (AGENTS §7).
-  const token = getAttemptToken(attemptId) ?? undefined;
+  const token = getRequiredAttemptToken(attemptId);
   return api.get(`/attempts/${attemptId}`, sittingSchema, signal, token);
+}
+
+function getRequiredAttemptToken(attemptId: string): string {
+  const token = getAttemptToken(attemptId);
+  if (!token) {
+    throw new ApiError({
+      status: 401,
+      code: "attempt_token_missing",
+      message: "This exam session is no longer available. Start the exam again.",
+    });
+  }
+  return token;
 }
 
 export function useSitting(attemptId: string) {
@@ -47,6 +60,7 @@ export function useSitting(attemptId: string) {
     retry: 3,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchInterval: 3_000,
   });
 }
 
@@ -65,7 +79,7 @@ export async function syncAnswers(
     await new Promise((r) => setTimeout(r, 250));
     return answers.map((a) => a.questionId);
   }
-  const token = getAttemptToken(attemptId) ?? undefined;
+  const token = getRequiredAttemptToken(attemptId);
   const res = await api.put(
     `/attempts/${attemptId}/answers`,
     { answers },
@@ -76,6 +90,14 @@ export async function syncAnswers(
 }
 
 const eventsAckSchema = z.object({ stored: z.number() });
+
+const lockAckSchema = z.object({ ok: z.boolean() });
+
+export async function lockAttempt(attemptId: string, reason: string): Promise<void> {
+  if (USE_MOCKS) return;
+  const token = getRequiredAttemptToken(attemptId);
+  await api.post(`/attempts/${attemptId}/lock`, { reason }, lockAckSchema, token);
+}
 
 /**
  * Send batched proctoring telemetry (AGENTS §7). Fire-and-forget from the
@@ -91,11 +113,24 @@ export async function postProctoringEvents(
     await new Promise((r) => setTimeout(r, 150));
     return;
   }
-  const token = getAttemptToken(attemptId) ?? undefined;
+  const token = getRequiredAttemptToken(attemptId);
   await api.post(
     `/attempts/${attemptId}/events`,
     { events },
     eventsAckSchema,
     token,
   );
+}
+
+
+const submitAckSchema = z.object({ ok: z.boolean() });
+
+// ADDED: Network call to submit the exam using the student's attempt token
+export async function submitAttempt(attemptId: string): Promise<void> {
+  if (USE_MOCKS) {
+    await new Promise((r) => setTimeout(r, 300));
+    return;
+  }
+  const token = getRequiredAttemptToken(attemptId);
+  await api.post(`/attempts/${attemptId}/submit`, {}, submitAckSchema, token);
 }

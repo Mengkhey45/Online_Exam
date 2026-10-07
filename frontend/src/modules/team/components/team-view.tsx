@@ -20,8 +20,8 @@ export function TeamView() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink">Team</h1>
           <p className="mt-0.5 text-sm text-ink-2">
-            Teachers and admins in your institution. Invited people join when
-            they first sign in with that email.
+            Teachers and admins in your institution. Invited people are confirmed
+            after they sign in with their invited email.
           </p>
         </div>
         <InviteDialog

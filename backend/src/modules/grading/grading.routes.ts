@@ -4,12 +4,25 @@ import { requireCtx } from "@/middleware/context";
 import {
   answerIdParams,
   examIdParams,
+  resultsQuery,
   scoreSchema,
+  type ResultsQuery,
   type ScoreInput,
 } from "./grading.schema";
-import { getGrading, releaseResults, scoreAnswer } from "./grading.service";
+import { getGrading, getResults, releaseResults, scoreAnswer } from "./grading.service";
 
 export const gradingRouter: Router = Router();
+
+gradingRouter.get(
+  "/exams/:id/results",
+  validate(examIdParams, "params"),
+  validate(resultsQuery, "query"),
+  async (req, res) => {
+    const { id } = validated<{ id: string }>(req, "params");
+    const filters = validated<ResultsQuery>(req, "query");
+    res.json(await getResults(requireCtx(req), id, filters));
+  },
+);
 
 gradingRouter.get(
   "/exams/:id/grading",

@@ -1,0 +1,1 @@
+export { bankRouter } from "./bank.routes";

@@ -44,6 +44,7 @@ export type Confidence = z.infer<typeof confidenceSchema>;
 
 export const blockSchema = z.object({
   id: z.string(),
+  sourceQuestionId: z.string().optional(),
   type: blockTypeSchema,
   stem: z.string(), // LaTeX in $…$; blanks as {{blankId}}
   marks: z.number(),
@@ -103,6 +104,7 @@ export const attemptSchema = z.object({
   examVersionId: z.string(),
   presentedOrder: z.record(z.string(), z.array(z.string())), // sectionId -> questionIds
   presentedOptions: z.record(z.string(), z.array(z.string())), // questionId -> optionIds
+  status: z.enum(["in_progress", "submitted", "locked", "disconnected"]),
   startedAt: z.string(),
   expiresAt: z.string(),
 });

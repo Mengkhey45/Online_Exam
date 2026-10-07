@@ -10,6 +10,7 @@ import type { Block, Exam, Section } from "@/schema";
 export function rowToBlock(q: ExamQuestionRow): Block {
   const block: Block = {
     id: q.id,
+    sourceQuestionId: q.sourceQuestionId ?? undefined,
     type: q.type,
     stem: q.stem,
     marks: q.marks,

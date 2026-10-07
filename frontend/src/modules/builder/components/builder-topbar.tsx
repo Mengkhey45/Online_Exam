@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Eye, Settings2, Save, Send, TriangleAlert } from "lucide-react";
+import { Eye, LockKeyhole, Settings2, Save, Send, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +18,15 @@ import { getBlockDef } from "../blocks/registry";
 import { useBuilder, useCounters } from "../store";
 import { useSaveExam, usePublishExam } from "../queries";
 import { PreviewDialog } from "./preview-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const AON_RE = /\b(all|none) of the above\b/i;
 
@@ -28,13 +37,18 @@ export function BuilderTopbar() {
   const router = useRouter();
   const save = useSaveExam(state.examId);
   const publish = usePublishExam(state.examId);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const busy = save.isPending || publish.isPending;
+  const published = state.status === "published";
 
   function saveDraft() {
     save.mutate(
       { title: state.title, sections: state.sections },
       {
-        onSuccess: () => toast.success("Draft saved"),
+        onSuccess: () => {
+          sessionStorage.removeItem(`exam-builder:${state.examId}`);
+          toast.success("Draft saved");
+        },
         onError: () => toast.error("Couldn’t save the draft. Try again."),
       },
     );
@@ -44,7 +58,9 @@ export function BuilderTopbar() {
     try {
       // Persist the latest edits first, then publish what's saved.
       await save.mutateAsync({ title: state.title, sections: state.sections });
+      sessionStorage.removeItem(`exam-builder:${state.examId}`);
       await publish.mutateAsync();
+      setPublishDialogOpen(false);
       toast.success("Exam published");
       router.push("/dashboard");
     } catch (err) {
@@ -92,6 +108,7 @@ export function BuilderTopbar() {
 
       <Input
         value={state.title}
+        readOnly={published}
         onChange={(e) => dispatch({ kind: "set_title", title: e.target.value })}
         aria-label="Exam title"
         className="h-8 max-w-sm border-transparent bg-transparent px-1.5 text-sm font-semibold text-ink hover:border-rule focus-visible:bg-surface"
@@ -143,18 +160,42 @@ export function BuilderTopbar() {
         <Button
           variant="outline"
           size="sm"
-          disabled={busy}
+          disabled={busy || published}
           onClick={saveDraft}
         >
           <Save />
           {save.isPending ? "Saving…" : "Save draft"}
         </Button>
 
-        {canPublish ? (
-          <Button size="sm" disabled={busy} onClick={publishExam}>
-            <Send />
-            {publish.isPending ? "Publishing…" : "Publish"}
-          </Button>
+        {published ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-surface-sunk px-2.5 py-1.5 text-xs font-medium text-ink-2">
+            <LockKeyhole className="size-3.5" aria-hidden />
+            Published · questions locked
+          </span>
+        ) : canPublish ? (
+          <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+            <DialogTrigger render={<Button size="sm" disabled={busy} />}>
+              <Send />
+              Publish
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Publish exam?</DialogTitle>
+                <DialogDescription>
+                  Once published, this exam&apos;s questions cannot be edited. Save any remaining changes as a draft before publishing.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPublishDialogOpen(false)} disabled={busy}>
+                  Keep editing
+                </Button>
+                <Button onClick={() => void publishExam()} disabled={busy}>
+                  <Send />
+                  {publish.isPending ? "Publishing…" : "Publish exam"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         ) : (
           <Tooltip>
             <TooltipTrigger

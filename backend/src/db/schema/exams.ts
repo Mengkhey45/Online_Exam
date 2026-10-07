@@ -41,6 +41,7 @@ export const exams = pgTable(
     resultsReleasedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    createdBy: text("created_by").notNull(),
   },
   (t) => [uniqueIndex("exams_org_key_idx").on(t.organizationId, t.examKey)],
 );

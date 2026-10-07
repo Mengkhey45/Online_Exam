@@ -25,6 +25,8 @@ declare
     'exam_groups','exams','exam_sections','exam_questions','exam_versions',
     'attempts','answers','proctoring_events','incidents','jobs',
     'imports','import_pages','converted_blocks'
+    ,'question_bank'
+    ,'question_bank'
   ];
 begin
   foreach t in array tables loop

@@ -5,6 +5,7 @@ import { newId } from "@/lib/ids";
 import { notFound } from "@/lib/errors";
 import type { RequestContext } from "@/middleware/context";
 import type { ProctoringEvent } from "@/schema";
+import { assertCanMonitorAttempt } from "@/lib/access";
 
 const BLUR_NOISE_MS = 2000;
 
@@ -54,6 +55,8 @@ export async function ingestEvents(
 
 /** The activity timeline for one attempt (monitoring drawer). */
 export async function getActivity(ctx: RequestContext, attemptId: string) {
+  // ADDED: check ownership before querying the database for this timeline
+  await assertCanMonitorAttempt(ctx, attemptId);  
   const sdb = scopedDb(ctx.organizationId);
   const [attempt] = await sdb.db
     .select({ id: attempts.id, studentId: attempts.studentId })
@@ -93,7 +96,8 @@ export async function recordIncident(
   attemptId: string,
   note: string,
 ) {
-  await assertAttempt(ctx, attemptId);
+  // CHANGED: replace assertAttempt with assertCanMonitorAttempt to verify teacher ownership
+  await assertCanMonitorAttempt(ctx, attemptId);
   const sdb = scopedDb(ctx.organizationId);
   const id = newId("inc");
   await sdb.db.insert(incidents).values(

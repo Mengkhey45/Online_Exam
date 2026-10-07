@@ -3,14 +3,151 @@ import { scopedDb } from "@/db/scoped";
 import {
   answers as answersTable,
   attempts,
+  classes,
+  examGroups,
   examVersions,
   exams,
+  students,
 } from "@/db/schema";
 import type { AnswerRow } from "@/db/schema/answers";
 import { conflict, notFound } from "@/lib/errors";
 import type { RequestContext } from "@/middleware/context";
 import type { Block, Exam } from "@/schema";
 import { isAutoScored } from "./scoring";
+import type { ResultsQuery } from "./grading.schema";
+
+/** Results are calculated from persisted awarded marks, never from fixtures or client state. */
+export async function getResults(
+  ctx: RequestContext,
+  examId: string,
+  filters: ResultsQuery = {},
+) {
+  const sdb = scopedDb(ctx.organizationId);
+  const [exam] = await sdb.db
+    .select()
+    .from(exams)
+    .where(sdb.where(exams, eq(exams.id, examId)))
+    .limit(1);
+  if (!exam || (ctx.role === "teacher" && exam.createdBy !== ctx.userId)) {
+    throw notFound("Exam not found");
+  }
+  if (!exam.resultsReleasedAt || !exam.currentVersionId) {
+    throw notFound("Results have not been released");
+  }
+
+  const [group] = await sdb.db
+    .select({ name: examGroups.name })
+    .from(examGroups)
+    .where(sdb.where(examGroups, eq(examGroups.id, exam.groupId)))
+    .limit(1);
+  const subject = group?.name ?? "Unassigned";
+  if (filters.subject && filters.subject !== subject) {
+    return emptyResults(exam, subject, filters.classId);
+  }
+
+  const [version] = await sdb.db
+    .select({ snapshot: examVersions.snapshot })
+    .from(examVersions)
+    .where(sdb.where(examVersions, eq(examVersions.id, exam.currentVersionId)))
+    .limit(1);
+  if (!version) throw notFound("Exam version not found");
+
+  const studentRows = await sdb.db
+    .select({
+      id: students.id,
+      studentRef: students.studentRef,
+      name: students.name,
+      classId: students.classId,
+    })
+    .from(students)
+    .where(
+      sdb.where(
+        students,
+        filters.classId ? eq(students.classId, filters.classId) : undefined,
+      ),
+    );
+  const studentById = new Map(studentRows.map((student) => [student.id, student]));
+  const [classRows, attemptRows] = await Promise.all([
+    sdb.db.select({ id: classes.id, name: classes.name }).from(classes).where(sdb.where(classes)),
+    sdb.db
+      .select()
+      .from(attempts)
+      .where(sdb.where(attempts, eq(attempts.examId, examId))),
+  ]);
+  const classById = new Map(classRows.map((classRow) => [classRow.id, classRow.name]));
+  const eligibleAttempts = attemptRows.filter(
+    (attempt) =>
+      (attempt.status === "submitted" || attempt.status === "locked") &&
+      studentById.has(attempt.studentId),
+  );
+  const attemptIds = eligibleAttempts.map((attempt) => attempt.id);
+  const answerRows = attemptIds.length
+    ? await sdb.db
+        .select({ attemptId: answersTable.attemptId, awardedMarks: answersTable.awardedMarks })
+        .from(answersTable)
+        .where(sdb.where(answersTable, inArray(answersTable.attemptId, attemptIds)))
+    : [];
+  const marksByAttempt = new Map<string, number>();
+  for (const answer of answerRows) {
+    marksByAttempt.set(
+      answer.attemptId,
+      (marksByAttempt.get(answer.attemptId) ?? 0) + (answer.awardedMarks ?? 0),
+    );
+  }
+
+  const outOf = version.snapshot.totalMarks;
+  const rows = eligibleAttempts.map((attempt) => {
+    const student = studentById.get(attempt.studentId);
+    if (!student) return null;
+    const marks = round2(marksByAttempt.get(attempt.id) ?? 0);
+    const percentage = outOf > 0 ? round2((marks / outOf) * 100) : 0;
+    return {
+      studentRef: student.studentRef,
+      name: student.name,
+      classId: student.classId,
+      className: student.classId ? classById.get(student.classId) ?? "Unassigned" : "Unassigned",
+      marks,
+      outOf,
+      percentage,
+      rank: 0,
+      status: percentage >= exam.passMarkPct ? ("pass" as const) : ("fail" as const),
+    };
+  }).filter((row): row is NonNullable<typeof row> => row !== null)
+    .sort((a, b) => b.marks - a.marks || a.name.localeCompare(b.name));
+  rows.forEach((row, index) => { row.rank = index + 1; });
+
+  return {
+    examId: exam.id,
+    title: exam.title,
+    subject,
+    totalStudents: studentRows.length,
+    notSubmitted: Math.max(0, studentRows.length - eligibleAttempts.length),
+    passMarkPct: exam.passMarkPct,
+    released: true,
+    classes: classRows,
+    subjects: [subject],
+    rows,
+  };
+}
+
+function emptyResults(exam: typeof exams.$inferSelect, subject: string, classId?: string) {
+  return {
+    examId: exam.id,
+    title: exam.title,
+    subject,
+    totalStudents: 0,
+    notSubmitted: 0,
+    passMarkPct: exam.passMarkPct,
+    released: true,
+    classes: classId ? [{ id: classId, name: classId }] : [],
+    subjects: [subject],
+    rows: [],
+  };
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 /** Render a student's answer to displayable text for the grader. */
 function renderAnswer(block: Block, row: AnswerRow | undefined): string {

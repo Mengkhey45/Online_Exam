@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { blockTypeSchema } from "@/modules/exam";
+import { blockSchema } from "@/modules/exam";
 
 /**
  * PROVISIONAL — question bank shapes. A bank question is a reusable template;
@@ -11,12 +11,10 @@ export const difficultySchema = z.enum(["easy", "medium", "hard"]);
 export type Difficulty = z.infer<typeof difficultySchema>;
 
 export const bankQuestionSchema = z.object({
-  id: z.string(),
-  text: z.string(),
-  type: blockTypeSchema,
+  ...blockSchema.shape,
+  bankName: z.string(),
   subject: z.string(),
   difficulty: difficultySchema,
-  marks: z.number().int().nonnegative(),
   usedCount: z.number().int().nonnegative(), // exams that snapshotted it
 });
 export type BankQuestion = z.infer<typeof bankQuestionSchema>;

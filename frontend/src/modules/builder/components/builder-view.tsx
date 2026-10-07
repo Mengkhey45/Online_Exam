@@ -59,7 +59,7 @@ export function BuilderView({ examId }: { examId: string }) {
     <BuilderProvider key={exam.versionId} initial={initial}>
       <div className="flex h-svh flex-col overflow-hidden bg-paper">
         <BuilderTopbar />
-        <div className="flex min-h-0 flex-1">
+        <div className={`flex min-h-0 flex-1 ${exam.status === "published" ? "pointer-events-none select-none opacity-90" : ""}`}>
           <Palette />
           <div className="min-w-0 flex-1 overflow-y-auto">
             <Sheet />

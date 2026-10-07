@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { validate, validated } from "@/middleware/validate";
 import { requireCtx } from "@/middleware/context";
+import { requireRole } from "@/middleware/auth";
 import {
   addStudentSchema,
   classIdParams,
@@ -15,6 +16,7 @@ import {
 import {
   createClass,
   createStudent,
+  getOrganizationDashboard,
   getCapabilities,
   getOrganization,
   listClasses,
@@ -42,8 +44,18 @@ organizationRouter.get(
   },
 );
 
+/** Organisation-wide operational counts are an admin concern. */
+organizationRouter.get(
+  "/organization/dashboard",
+  requireRole("admin"),
+  async (req, res) => {
+    res.json(await getOrganizationDashboard(requireCtx(req)));
+  },
+);
+
 organizationRouter.patch(
   "/organizations/:id",
+  requireRole("admin"),
   validate(orgIdParams, "params"),
   validate(patchOrgSchema),
   async (req, res) => {
@@ -55,6 +67,7 @@ organizationRouter.patch(
 
 organizationRouter.get(
   "/organizations/:id/teachers",
+  requireRole("admin"),
   validate(orgIdParams, "params"),
   async (req, res) => {
     const { id } = validated<{ id: string }>(req, "params");
@@ -66,7 +79,7 @@ organizationRouter.get("/classes", async (req, res) => {
   res.json(await listClasses(requireCtx(req)));
 });
 
-organizationRouter.post("/classes", validate(createClassSchema), async (req, res) => {
+organizationRouter.post("/classes", requireRole("admin"), validate(createClassSchema), async (req, res) => {
   const input = validated<CreateClassInput>(req);
   res.status(201).json(await createClass(requireCtx(req), input));
 });
@@ -84,13 +97,14 @@ organizationRouter.get("/students", async (req, res) => {
   res.json(await listStudents(requireCtx(req)));
 });
 
-organizationRouter.post("/students", validate(addStudentSchema), async (req, res) => {
+organizationRouter.post("/students", requireRole("admin"), validate(addStudentSchema), async (req, res) => {
   const input = validated<AddStudentInput>(req);
   res.status(201).json(await createStudent(requireCtx(req), input));
 });
 
 organizationRouter.delete(
   "/students/:id",
+  requireRole("admin"),
   validate(studentIdParams, "params"),
   async (req, res) => {
     const { id } = validated<{ id: string }>(req, "params");

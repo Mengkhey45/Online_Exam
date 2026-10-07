@@ -28,9 +28,8 @@ import { useInviteTeacher } from "../queries";
 type Role = "teacher" | "admin";
 
 /**
- * Invite a colleague (AGENTS §6). No email is sent — they become a pending
- * member and are linked automatically the first time they sign in with Google
- * using this address. Share the app link with them directly.
+ * Invite a colleague (AGENTS §6). They receive a sign-in link and become a
+ * confirmed member after signing in with Google using the invited address.
  */
 export function InviteDialog({ trigger }: { trigger: ReactElement }) {
   const invite = useInviteTeacher();
@@ -64,8 +63,8 @@ export function InviteDialog({ trigger }: { trigger: ReactElement }) {
         <DialogHeader>
           <DialogTitle>Invite a colleague</DialogTitle>
           <DialogDescription>
-            They’ll join when they first sign in with Google using this email. No
-            email is sent — share the app link with them.
+            They’ll receive an email with a sign-in link. Their access stays
+            pending until they confirm by signing in with Google using this email.
           </DialogDescription>
         </DialogHeader>
 

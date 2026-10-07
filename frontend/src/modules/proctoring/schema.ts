@@ -21,7 +21,8 @@ export const monitoredStudentSchema = z.object({
   studentId: z.string(), // anonymised, e.g. "S-2048"
   status: attemptStatusSchema,
   answered: z.number().int().nonnegative(),
-  total: z.number().int().positive(),
+  // CHANGED: replaced .postive() with nonnegative() so exams with 0 questions don't crash the dasboard
+  total: z.number().int().nonnegative(),
   timeLeftMs: z.number().int().nonnegative(),
   flagCount: z.number().int().nonnegative(), // events worth a review
 });

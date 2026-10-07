@@ -7,7 +7,7 @@ export default function TeacherLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthGuard>
+    <AuthGuard roles={["teacher"]}>
       <TeacherShell>{children}</TeacherShell>
     </AuthGuard>
   );

@@ -15,6 +15,7 @@ import { autoScore } from "@/modules/grading/scoring";
 import { buildPresentedLayout } from "./present";
 import { mergeAnswers } from "./sync";
 import type { CreateAttemptInput } from "./attempt.schema";
+import { assertCanMonitorAttempt, assertCanMonitorExam } from "@/lib/access";
 
 function blockIndex(exam: Exam): Map<string, Block> {
   const map = new Map<string, Block>();
@@ -100,6 +101,7 @@ export async function getSitting(ctx: RequestContext, attemptId: string) {
     examVersionId: attempt.examVersionId,
     presentedOrder: attempt.presentedOrder,
     presentedOptions: attempt.presentedOptions,
+    status: attempt.status,
     startedAt: attempt.startedAt.toISOString(),
     expiresAt: attempt.expiresAt.toISOString(),
   };
@@ -119,6 +121,9 @@ export async function syncAnswers(
   const attempt = await loadAttempt(ctx, attemptId);
   if (attempt.status === "submitted") {
     throw conflict("ATTEMPT_SUBMITTED", "This attempt is already submitted.");
+  }
+  if (attempt.status === "locked") {
+    throw conflict("ATTEMPT_LOCKED", "This attempt is paused until a teacher unlocks it.");
   }
   const exam = await loadVersionSnapshot(ctx, attempt.examVersionId);
   const blocks = blockIndex(exam);
@@ -186,7 +191,13 @@ export async function syncAnswers(
 
 export async function submitAttempt(ctx: RequestContext, attemptId: string) {
   const sdb = scopedDb(ctx.organizationId);
-  await loadAttempt(ctx, attemptId);
+  const attempt = await loadAttempt(ctx, attemptId);
+  if (attempt.status === "locked") {
+    throw conflict("ATTEMPT_LOCKED", "This attempt is paused until a teacher unlocks it.");
+  }
+  if (attempt.status === "submitted") {
+    throw conflict("ATTEMPT_SUBMITTED", "This attempt is already submitted.");
+  }
   await sdb.db
     .update(attempts)
     .set({ status: "submitted", submittedAt: new Date() })
@@ -209,8 +220,8 @@ export async function lockAttempt(
 }
 
 export async function unlockAttempt(ctx: RequestContext, attemptId: string) {
+  await assertCanMonitorAttempt(ctx, attemptId);
   const sdb = scopedDb(ctx.organizationId);
-  await loadAttempt(ctx, attemptId);
   await sdb.db
     .update(attempts)
     .set({ status: "in_progress", lockReason: null })
@@ -223,6 +234,7 @@ export async function unlockAttempt(ctx: RequestContext, attemptId: string) {
  * 3.5). Progress, time left, and flag counts per attempt.
  */
 export async function getMonitoring(ctx: RequestContext, examId: string) {
+  await assertCanMonitorExam(ctx, examId);
   const sdb = scopedDb(ctx.organizationId);
   const [exam] = await sdb.db
     .select({ title: exams.title })

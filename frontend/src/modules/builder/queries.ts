@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api/client";
 import { examSchema, examKeys, type Exam, type Section } from "@/modules/exam";
+import { blockSchema } from "@/modules/exam";
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "1";
 
@@ -61,5 +62,16 @@ export function usePublishExam(examId: string) {
       queryClient.invalidateQueries({ queryKey: examKeys.detail(examId) });
       queryClient.invalidateQueries({ queryKey: examKeys.dashboard() });
     },
+  });
+}
+
+const copiedBlockSchema = z.object({ block: blockSchema });
+
+export function useCopyBankQuestion(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { questionId: string; sectionId: string }) =>
+      api.post(`/exams/${examId}/questions/from-bank`, input, copiedBlockSchema),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: examKeys.detail(examId) }),
   });
 }
