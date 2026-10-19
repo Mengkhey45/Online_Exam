@@ -6,7 +6,12 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-5xl flex-col px-6 py-6">
       <header className="flex items-center justify-between border-b border-rule pb-5">
-        <span className="text-sm font-semibold tracking-tight text-ink">Examroom</span>
+        <div className="flex items-center gap-2">
+          <span className="flex size-6 items-center justify-center rounded-sm bg-accent font-mono text-xs font-semibold text-white">
+            E
+          </span>
+          <span className="text-sm font-semibold tracking-tight text-ink">Examroom</span>
+        </div>
         <div className="flex items-center gap-4">
           <span className="hidden items-center gap-2 text-sm text-ink-2 sm:flex">
             <Button variant="ghost" nativeButton={false} render={<Link href="/enter" />}>Enter Examroom</Button>

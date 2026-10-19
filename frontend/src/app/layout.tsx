@@ -30,6 +30,13 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Examroom",
   description: "Online examinations for universities.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({
