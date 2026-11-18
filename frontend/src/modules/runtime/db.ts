@@ -63,15 +63,22 @@ export function loadUnsynced(attemptId: string): Promise<StoredAnswer[]> {
     .toArray();
 }
 
-/** Mark a set of answers as confirmed by the server. */
+/**
+ * Mark answers as confirmed by the server — but only the exact versions that
+ * were sent. If the student edited a question while the sync was in flight,
+ * the stored copy is newer and must stay unsynced so it goes out next time.
+ */
 export async function markSynced(
   attemptId: string,
-  questionIds: string[],
+  sent: { questionId: string; updatedAt: string }[],
 ): Promise<void> {
-  await db.answers.bulkUpdate(
-    questionIds.map((qid) => ({
-      key: answerKey(attemptId, qid),
-      changes: { synced: true },
-    })),
-  );
+  await db.transaction("rw", db.answers, async () => {
+    for (const { questionId, updatedAt } of sent) {
+      await db.answers
+        .where("key")
+        .equals(answerKey(attemptId, questionId))
+        .and((r) => r.updatedAt === updatedAt)
+        .modify({ synced: true });
+    }
+  });
 }

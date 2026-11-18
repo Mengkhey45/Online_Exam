@@ -12,6 +12,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabase } from "@/lib/supabase/client";
 import { api, setApiAccessToken } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 
 const profileSchema = z.object({
   userId: z.string(),
@@ -30,10 +31,17 @@ type AuthValue = {
   email: string | null;
   name: string;
   profile: Profile | null;
+  /**
+   * True when the session is valid but the backend has no user row for it
+   * (401 from /auth/me) — the account must create an organization or be invited.
+   */
+  needsOrganization: boolean;
   /** Re-fetch /auth/me with the current token. Call this after self-provisioning. */
   refreshProfile: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<string | null>;
+  sendPasswordReset: (email: string) => Promise<string | null>;
+  updatePassword: (password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
 };
 
@@ -42,11 +50,17 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [needsOrganization, setNeedsOrganization] = useState(false);
   const [loading, setLoading] = useState(true);
   async function fetchProfile(): Promise<Profile | null> {
     try {
-      return await api.get("/auth/me", profileSchema);
-    } catch {
+      const p = await api.get("/auth/me", profileSchema);
+      setNeedsOrganization(false);
+      return p;
+    } catch (cause) {
+      // 401 with a valid Supabase session = no app account yet. Anything else
+      // (network, 5xx) is a transient failure, not a missing organization.
+      setNeedsOrganization(cause instanceof ApiError && cause.status === 401);
       return null;
     }
   }
@@ -69,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setApiAccessToken(next?.access_token ?? null);
       if (!next) {
         setProfile(null);
+        setNeedsOrganization(false);
         setLoading(false);
         return;
       }
@@ -120,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: session?.user.email ?? null,
       name,
       profile,
+      needsOrganization,
       refreshProfile,
       async signInWithGoogle() {
         await supabase.auth.signInWithOAuth({
@@ -131,11 +147,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return error?.message ?? null;
       },
+      async sendPasswordReset(email) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        return error?.message ?? null;
+      },
+      async updatePassword(password) {
+        const { error } = await supabase.auth.updateUser({ password });
+        return error?.message ?? null;
+      },
       async signOut() {
         await supabase.auth.signOut();
       },
     };
-  }, [session, profile, loading, refreshProfile]);
+  }, [session, profile, needsOrganization, loading, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

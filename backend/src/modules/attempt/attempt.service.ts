@@ -16,6 +16,12 @@ import { buildPresentedLayout } from "./present";
 import { mergeAnswers } from "./sync";
 import type { CreateAttemptInput } from "./attempt.schema";
 import { assertCanMonitorAttempt, assertCanMonitorExam } from "@/lib/access";
+import {
+  ANSWER_CLOCK_SKEW_MS,
+  finalizeExpiredAttempts,
+  finalizeIfExpired,
+  isPastDeadline,
+} from "./expiry";
 
 function blockIndex(exam: Exam): Map<string, Block> {
   const map = new Map<string, Block>();
@@ -31,7 +37,19 @@ async function loadAttempt(ctx: RequestContext, attemptId: string) {
     .where(sdb.where(attempts, eq(attempts.id, attemptId)))
     .limit(1);
   if (!attempt) throw notFound("Attempt not found");
-  return attempt;
+  return finalizeIfExpired(ctx, attempt);
+}
+
+function toAnswer(r: typeof answersTable.$inferSelect): Answer {
+  return {
+    questionId: r.questionId,
+    optionIds: r.optionIds ?? undefined,
+    blankAnswers: r.blankAnswers ?? undefined,
+    text: r.text ?? undefined,
+    fileUrl: r.fileUrl ?? undefined,
+    flaggedForReview: r.flaggedForReview,
+    updatedAt: r.updatedAt.toISOString(),
+  } as Answer;
 }
 
 async function loadVersionSnapshot(
@@ -105,7 +123,27 @@ export async function getSitting(ctx: RequestContext, attemptId: string) {
     startedAt: attempt.startedAt.toISOString(),
     expiresAt: attempt.expiresAt.toISOString(),
   };
-  return { exam, attempt: attemptPayload };
+  // Saved answers come back too, so a student on another device (or with
+  // cleared storage) sees their work. The client keeps whichever copy is newer.
+  const sdb = scopedDb(ctx.organizationId);
+  const answerRows = await sdb.db
+    .select()
+    .from(answersTable)
+    .where(sdb.where(answersTable, eq(answersTable.attemptId, attemptId)));
+  return { exam, attempt: attemptPayload, answers: answerRows.map(toAnswer) };
+}
+
+/**
+ * Lightweight status check the runtime polls (lock / unlock / time-up) instead
+ * of re-downloading the whole exam (AGENTS §3.3).
+ */
+export async function getAttemptStatus(ctx: RequestContext, attemptId: string) {
+  const attempt = await loadAttempt(ctx, attemptId);
+  return {
+    status: attempt.status,
+    expiresAt: attempt.expiresAt.toISOString(),
+    lockReason: attempt.lockReason ? splitLockReason(attempt.lockReason).reason : null,
+  };
 }
 
 /**
@@ -134,20 +172,14 @@ export async function syncAnswers(
     .where(sdb.where(answersTable, eq(answersTable.attemptId, attemptId)));
 
   const existing = new Map<string, Answer>();
-  for (const r of existingRows) {
-    existing.set(r.questionId, {
-      questionId: r.questionId,
-      optionIds: r.optionIds ?? undefined,
-      blankAnswers: r.blankAnswers ?? undefined,
-      text: r.text ?? undefined,
-      fileUrl: r.fileUrl ?? undefined,
-      flaggedForReview: r.flaggedForReview,
-      updatedAt: r.updatedAt.toISOString(),
-    } as Answer);
-  }
+  for (const r of existingRows) existing.set(r.questionId, toAnswer(r));
 
-  // Only accept answers for questions that exist in this version.
-  const valid = incoming.filter((a) => blocks.has(a.questionId));
+  // Only accept answers for questions that exist in this version, and only
+  // edits made before time ran out (allowing for the student's clock drift).
+  const lastEditAt = attempt.expiresAt.getTime() + ANSWER_CLOCK_SKEW_MS;
+  const valid = incoming.filter(
+    (a) => blocks.has(a.questionId) && Date.parse(a.updatedAt) <= lastEditAt,
+  );
   const { toWrite } = mergeAnswers(existing, valid);
 
   for (const answer of toWrite) {
@@ -186,21 +218,27 @@ export async function syncAnswers(
       });
   }
 
-  return { accepted: toWrite.map((a) => a.questionId) };
+  // Acknowledge EVERY answer in the batch, not just the ones that changed: an
+  // unchanged (already stored) or stale answer is still settled, and leaving it
+  // unacknowledged makes the client resend it forever ("Saving…" never clears).
+  // Rejected ones (unknown question, typed after time) will never be accepted,
+  // so they are settled too.
+  return { accepted: [...new Set(incoming.map((a) => a.questionId))] };
 }
 
 export async function submitAttempt(ctx: RequestContext, attemptId: string) {
   const sdb = scopedDb(ctx.organizationId);
   const attempt = await loadAttempt(ctx, attemptId);
-  if (attempt.status === "locked") {
+  // Idempotent: a retried submit (lost response, auto-submit retry) succeeds.
+  if (attempt.status === "submitted") return { ok: true };
+  // A paused student can't submit early — but once time is up the attempt
+  // closes regardless, so the browser's auto-submit always lands.
+  if (attempt.status === "locked" && !isPastDeadline(attempt)) {
     throw conflict("ATTEMPT_LOCKED", "This attempt is paused until a teacher unlocks it.");
-  }
-  if (attempt.status === "submitted") {
-    throw conflict("ATTEMPT_SUBMITTED", "This attempt is already submitted.");
   }
   await sdb.db
     .update(attempts)
-    .set({ status: "submitted", submittedAt: new Date() })
+    .set({ status: "submitted", submittedAt: new Date(), lockReason: null })
     .where(sdb.where(attempts, eq(attempts.id, attemptId)));
   return { ok: true };
 }
@@ -211,10 +249,44 @@ export async function lockAttempt(
   reason: string,
 ) {
   const sdb = scopedDb(ctx.organizationId);
-  await loadAttempt(ctx, attemptId);
+  const attempt = await loadAttempt(ctx, attemptId);
+  // Never reopen a finished attempt by locking it.
+  if (attempt.status === "submitted") return { ok: true };
   await sdb.db
     .update(attempts)
     .set({ status: "locked", lockReason: reason })
+    .where(sdb.where(attempts, eq(attempts.id, attemptId)));
+  return { ok: true };
+}
+
+// The note shares the lock_reason column (no schema change); split for display.
+const NOTE_SEPARATOR = "\nStudent note: ";
+
+function splitLockReason(value: string | null): { reason: string; note?: string } {
+  const [reason = "", ...rest] = (value ?? "").split(NOTE_SEPARATOR);
+  const note = rest.join(NOTE_SEPARATOR).trim();
+  return note ? { reason, note } : { reason };
+}
+
+/**
+ * The student's optional explanation from the pause screen. Attached to the
+ * pause only while it is still waiting for the teacher, so a late note can
+ * never re-lock an attempt the teacher already unlocked. Shown in the teacher's
+ * unlock queue (AGENTS §7 "unlock queue with explanations").
+ */
+export async function addLockNote(
+  ctx: RequestContext,
+  attemptId: string,
+  note: string,
+) {
+  const sdb = scopedDb(ctx.organizationId);
+  const attempt = await loadAttempt(ctx, attemptId);
+  const trimmed = note.trim();
+  if (attempt.status !== "locked" || !trimmed) return { ok: true };
+  const { reason } = splitLockReason(attempt.lockReason);
+  await sdb.db
+    .update(attempts)
+    .set({ lockReason: `${reason}${NOTE_SEPARATOR}${trimmed}` })
     .where(sdb.where(attempts, eq(attempts.id, attemptId)));
   return { ok: true };
 }
@@ -235,6 +307,7 @@ export async function unlockAttempt(ctx: RequestContext, attemptId: string) {
  */
 export async function getMonitoring(ctx: RequestContext, examId: string) {
   await assertCanMonitorExam(ctx, examId);
+  await finalizeExpiredAttempts(ctx, examId);
   const sdb = scopedDb(ctx.organizationId);
   const [exam] = await sdb.db
     .select({ title: exams.title })
@@ -252,12 +325,16 @@ export async function getMonitoring(ctx: RequestContext, examId: string) {
   // Paused (locked) students awaiting an unlock. Language stays neutral (3.4).
   const unlockQueue = attemptRows
     .filter((a) => a.status === "locked")
-    .map((a) => ({
-      attemptId: a.id,
-      studentId: a.studentId,
-      reason: a.lockReason ?? "Left the exam window",
-      at: new Date().toISOString(),
-    }));
+    .map((a) => {
+      const { reason, note } = splitLockReason(a.lockReason);
+      return {
+        attemptId: a.id,
+        studentId: a.studentId,
+        reason: reason || "Left the exam window",
+        ...(note ? { note } : {}),
+        at: new Date().toISOString(),
+      };
+    });
   const students = await Promise.all(
     attemptRows.map(async (a) => {
       const [answered] = await sdb.db

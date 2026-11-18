@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import type { Answer } from "@/modules/exam";
+import { ApiError } from "@/lib/api/errors";
 import { loadAnswers, markSynced, putAnswer } from "./db";
 import { syncAnswers, type Sitting } from "./queries";
 import { buildPresentedItems, type PresentedItem } from "./select";
@@ -25,8 +26,15 @@ type Action =
 
 function reducer(state: State, action: Action): State {
   switch (action.kind) {
-    case "hydrate":
-      return { ...state, answers: { ...action.answers, ...state.answers } };
+    case "hydrate": {
+      // Keep whichever copy of each answer is newer (local vs. what's loaded).
+      const answers = { ...state.answers };
+      for (const [id, incoming] of Object.entries(action.answers)) {
+        const current = answers[id];
+        if (!current || isNewer(incoming, current)) answers[id] = incoming;
+      }
+      return { ...state, answers };
+    }
     case "set_answer":
       return {
         ...state,
@@ -37,6 +45,10 @@ function reducer(state: State, action: Action): State {
     default:
       return state;
   }
+}
+
+function isNewer(a: Answer, b: Answer): boolean {
+  return Date.parse(a.updatedAt) > Date.parse(b.updatedAt);
 }
 
 type RuntimeValue = {
@@ -52,6 +64,11 @@ type RuntimeValue = {
   /** Update the answer payload for a question (merges, stamps updatedAt). */
   updateAnswer: (questionId: string, patch: Partial<Answer>) => void;
   toggleFlag: (questionId: string) => void;
+  /**
+   * Send every unsynced answer now, ignoring backoff. Resolves true when the
+   * server holds all answers. Used before submitting.
+   */
+  flushNow: () => Promise<boolean>;
 };
 
 const RuntimeContext = createContext<RuntimeValue | null>(null);
@@ -69,7 +86,11 @@ export function RuntimeProvider({
   children: React.ReactNode;
 }) {
   const items = useMemo(() => buildPresentedItems(sitting), [sitting]);
-  const [state, dispatch] = useReducer(reducer, { currentIndex: 0, answers: {} });
+  // Start from the answers the server already holds; local copies merge in below.
+  const [state, dispatch] = useReducer(reducer, sitting.answers, (saved) => ({
+    currentIndex: 0,
+    answers: Object.fromEntries(saved.map((a) => [a.questionId, a])),
+  }));
 
   // Sync bookkeeping — refs so the interval always sees the latest without
   // re-subscribing. `dirty` holds questionIds with unsynced local edits.
@@ -96,6 +117,9 @@ export function RuntimeProvider({
       if (!alive || rows.length === 0) return;
       const map: AnswerMap = {};
       for (const r of rows) {
+        const server = answersRef.current[r.questionId];
+        // The server copy is newer (e.g. edited on another device) — keep it.
+        if (server && !isNewer(r.answer, server)) continue;
         map[r.questionId] = r.answer;
         if (!r.synced) dirty.current.add(r.questionId);
       }
@@ -122,35 +146,55 @@ export function RuntimeProvider({
     };
   }, []);
 
-  const flush = useCallback(async () => {
-    if (flushing.current) return;
-    if (dirty.current.size === 0) return;
-    if (Date.now() < nextRetryAt.current) return;
+  const flush = useCallback(async (force = false): Promise<boolean> => {
+    if (flushing.current) return false;
+    if (dirty.current.size === 0) return true;
+    if (!force && Date.now() < nextRetryAt.current) return false;
 
     flushing.current = true;
     const ids = [...dirty.current];
+    // Snapshot the exact versions being sent.
     const batch = ids
       .map((id) => answersRef.current[id])
       .filter((a): a is Answer => Boolean(a));
     try {
-      const accepted = await syncAnswers(attemptId, batch);
-      await markSynced(attemptId, accepted);
-      for (const id of accepted) dirty.current.delete(id);
+      const acceptedIds = new Set(await syncAnswers(attemptId, batch));
+      const settled = batch.filter((a) => acceptedIds.has(a.questionId));
+      await markSynced(attemptId, settled);
+      for (const sent of settled) {
+        // Only clear the question if it wasn't edited again while in flight —
+        // otherwise the newer text would never be sent.
+        if (answersRef.current[sent.questionId]?.updatedAt === sent.updatedAt) {
+          dirty.current.delete(sent.questionId);
+        }
+      }
       failCount.current = 0;
       nextRetryAt.current = 0;
       setOnline(true);
       setPending(dirty.current.size);
-    } catch {
+      return dirty.current.size === 0;
+    } catch (cause) {
       // Retry with exponential backoff. Answers stay safe in IndexedDB.
       failCount.current += 1;
       nextRetryAt.current =
         Date.now() +
         Math.min(MAX_BACKOFF_MS, 1000 * 2 ** failCount.current);
-      setOnline(false);
+      // Only a request that never reached the server means "offline". A paused
+      // attempt (409) or a server error is not the student's connection.
+      setOnline(!(cause instanceof ApiError && cause.isOffline));
+      return false;
     } finally {
       flushing.current = false;
     }
   }, [attemptId]);
+
+  const flushNow = useCallback(async (): Promise<boolean> => {
+    // Wait for an in-flight sync to finish, then send whatever is left.
+    for (let i = 0; i < 50 && flushing.current; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return flush(true);
+  }, [flush]);
 
   // Periodic sync. Independent of rendering; a keystroke never awaits it.
   useEffect(() => {
@@ -232,6 +276,7 @@ export function RuntimeProvider({
     prev,
     updateAnswer,
     toggleFlag,
+    flushNow,
   };
 
   return (

@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { PauseCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 
 /**
- * Medium-security lockout (AGENTS §7): a countdown, the reason, and a note
- * field. The tone is neutral — the exam is paused, not the student accused
- * (rule 3.4). Nothing here changes a score; a teacher decides what matters.
+ * Medium-security lockout (AGENTS §7): a short hold, then the student resumes.
+ * The tone is neutral — the exam is paused, not the student accused (rule 3.4).
+ * Nothing here changes a score; the time away is recorded as activity for the
+ * teacher to review. (High security pauses until a teacher unlocks, and that
+ * screen — in FullscreenGate — is where a note to the teacher can be sent.)
  */
 export function LockoutOverlay({
   reason,
@@ -17,11 +17,10 @@ export function LockoutOverlay({
   holdSeconds = 5,
 }: {
   reason: string;
-  onResume: (note: string) => void;
+  onResume: () => void;
   holdSeconds?: number;
 }) {
   const [left, setLeft] = useState(holdSeconds);
-  const [note, setNote] = useState("");
 
   useEffect(() => {
     if (left <= 0) return;
@@ -48,27 +47,14 @@ export function LockoutOverlay({
         </div>
 
         <p className="rounded-md bg-surface-sunk px-3 py-2 text-sm text-ink-2">
-          Your answers are saved. Your teacher will see that the exam was paused;
-          it doesn’t change your marks.
+          Your answers are saved. Time away from the exam is recorded for your
+          teacher to review; it doesn’t change your marks. The timer keeps running.
         </p>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="lockout-note" className="text-sm text-ink-2">
-            Add a note about what happened (optional)
-          </Label>
-          <Textarea
-            id="lockout-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            placeholder="e.g. my browser switched apps"
-          />
-        </div>
 
         <Button
           className="w-full"
           disabled={left > 0}
-          onClick={() => onResume(note)}
+          onClick={onResume}
         >
           {left > 0 ? `Resume in ${left}s` : "Resume exam"}
         </Button>

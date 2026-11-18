@@ -17,7 +17,7 @@ export const McqRuntime: RuntimeRenderer = ({ block, answer, options, onChange }
           <label
             key={o.id}
             className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
+              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent/50",
               checked
                 ? "border-accent bg-accent-soft"
                 : "border-rule hover:border-rule-strong hover:bg-surface-sunk/50",
@@ -70,7 +70,7 @@ export const MultiSelectRuntime: RuntimeRenderer = ({
           <label
             key={o.id}
             className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
+              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent/50",
               checked
                 ? "border-accent bg-accent-soft"
                 : "border-rule hover:border-rule-strong hover:bg-surface-sunk/50",

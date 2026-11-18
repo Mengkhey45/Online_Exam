@@ -11,13 +11,16 @@ import {
   attemptIdParams,
   createAttemptSchema,
   examIdParams,
+  lockNoteSchema,
   lockSchema,
   syncAnswersSchema,
   type CreateAttemptInput,
   type SyncAnswersInput,
 } from "./attempt.schema";
 import {
+  addLockNote,
   createAttempt,
+  getAttemptStatus,
   getMonitoring,
   getSitting,
   lockAttempt,
@@ -73,6 +76,16 @@ attemptSessionRouter.get(
   },
 );
 
+attemptSessionRouter.get(
+  "/attempts/:id/status",
+  attemptAuthenticate,
+  validate(attemptIdParams, "params"),
+  async (req, res) => {
+    const { id } = validated<{ id: string }>(req, "params");
+    res.json(await getAttemptStatus(requireAttempt(req, id), id));
+  },
+);
+
 attemptSessionRouter.put(
   "/attempts/:id/answers",
   attemptAuthenticate,
@@ -104,6 +117,18 @@ attemptSessionRouter.post(
     const { id } = validated<{ id: string }>(req, "params");
     const { reason } = validated<{ reason: string }>(req);
     res.json(await lockAttempt(requireAttempt(req, id), id, reason));
+  },
+);
+
+attemptSessionRouter.post(
+  "/attempts/:id/lock-note",
+  attemptAuthenticate,
+  validate(attemptIdParams, "params"),
+  validate(lockNoteSchema),
+  async (req, res) => {
+    const { id } = validated<{ id: string }>(req, "params");
+    const { note } = validated<{ note: string }>(req);
+    res.json(await addLockNote(requireAttempt(req, id), id, note));
   },
 );
 

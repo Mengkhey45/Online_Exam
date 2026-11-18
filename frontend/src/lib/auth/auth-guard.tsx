@@ -13,16 +13,18 @@ export function AuthGuard({
   children: React.ReactNode;
   roles?: Array<"admin" | "teacher" | "student">;
 }) {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, needsOrganization, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login");
-    if (!loading && session && !profile) router.replace("/login");
+    if (!loading && session && !profile) {
+      router.replace(needsOrganization ? "/register/setup" : "/login");
+    }
     if (!loading && profile && roles && !roles.includes(profile.role)) {
       router.replace(profile.role === "admin" ? "/admin/dashboard" : "/dashboard");
     }
-  }, [loading, session, profile, roles, router]);
+  }, [loading, session, profile, needsOrganization, roles, router]);
 
   if (loading || !session || !profile || (roles && !roles.includes(profile.role))) {
     return (

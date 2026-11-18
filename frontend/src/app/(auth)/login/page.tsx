@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth/auth-provider";
 
 export default function LoginPage() {
-  const { session, profile, loading, signInWithGoogle, signInWithPassword, signOut } = useAuth();
+  const { session, profile, needsOrganization, loading, signInWithGoogle, signInWithPassword, signOut } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,12 +25,12 @@ export default function LoginPage() {
     setSigningIn(false);
   }
 
-  // Already signed in → go to the app.
+  // Already signed in → go to the app, or finish organization setup.
   useEffect(() => {
-    if (!loading && profile) {
-      router.replace(profile.role === "admin" ? "/admin/dashboard" : "/dashboard");
-    }
-  }, [loading, profile, router]);
+    if (loading) return;
+    if (profile) router.replace(profile.role === "admin" ? "/admin/dashboard" : "/dashboard");
+    else if (session && needsOrganization) router.replace("/register/setup");
+  }, [loading, profile, session, needsOrganization, router]);
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-paper px-4">
@@ -52,7 +53,10 @@ export default function LoginPage() {
             <Input id="login-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="login-password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="login-password">Password</Label>
+              <Link href="/forgot-password" className="text-xs font-medium text-accent hover:underline">Forgot password?</Link>
+            </div>
             <Input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           </div>
           {signInError ? <p role="alert" className="text-sm text-danger">{signInError}</p> : null}
@@ -68,9 +72,9 @@ export default function LoginPage() {
         >
           Continue with Google
         </Button>
-        {!loading && session && !profile ? (
+        {!loading && session && !profile && !needsOrganization ? (
           <div role="alert" className="mt-4 text-sm text-danger">
-            This account is signed in but does not have access to an organization.
+            Couldn’t load your account. Check that the server is reachable, then reload the page.
             <Button variant="link" className="h-auto px-1" onClick={() => void signOut()}>
               Sign out
             </Button>
