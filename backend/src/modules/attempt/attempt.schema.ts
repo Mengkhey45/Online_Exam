@@ -19,6 +19,10 @@ export const lockSchema = z.object({
   reason: z.string().max(500).default(""),
 });
 
+export const lockNoteSchema = z.object({
+  note: z.string().max(1000),
+});
+
 export const attemptIdParams = z.object({ id: z.string() });
 export const examIdParams = z.object({ id: z.string() });
 

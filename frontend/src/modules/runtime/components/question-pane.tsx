@@ -21,14 +21,23 @@ export function QuestionPane() {
   const answer = answers[block.id];
   const flagged = answer?.flaggedForReview ?? false;
   const isContent = block.type === "content" || block.type === "section";
+  // Fill-in-the-blank renders its own stem with the inputs inline.
+  const stemInRenderer = block.type === "fill_blank";
   const Renderer = getRuntimeRenderer(block.type);
   const options = presentedOptions(sitting, block);
 
   return (
     <div className="mx-auto flex h-full w-full max-w-[720px] flex-col px-6 py-6">
-      <p className="mb-4 text-xs font-medium uppercase tracking-wide text-ink-3">
-        {current.sectionTitle}
-      </p>
+      <div className="mb-4 space-y-1.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
+          {current.sectionTitle}
+        </p>
+        {current.sectionInstructions.trim() ? (
+          <MathText className="block text-sm leading-6 text-ink-2">
+            {current.sectionInstructions}
+          </MathText>
+        ) : null}
+      </div>
 
       <div className="flex-1">
         {isContent ? (
@@ -44,9 +53,11 @@ export function QuestionPane() {
                 <QuestionNumber n={current.number} state="current" className="mt-1" />
               ) : null}
               <div className="flex-1 space-y-1">
-                <MathText className="font-serif text-lg leading-relaxed text-ink">
-                  {block.stem}
-                </MathText>
+                {stemInRenderer ? null : (
+                  <MathText className="font-serif text-lg leading-relaxed text-ink">
+                    {block.stem}
+                  </MathText>
+                )}
                 {block.marks > 0 ? (
                   <p className="font-mono text-xs text-ink-3 tabular">
                     {block.marks} {block.marks === 1 ? "mark" : "marks"}

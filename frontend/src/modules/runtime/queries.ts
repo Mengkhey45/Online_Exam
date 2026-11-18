@@ -4,6 +4,7 @@ import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getAttemptToken } from "@/lib/auth/attempt-session";
 import {
+  answerSchema,
   attemptSchema,
   examSchema,
   type Answer,
@@ -18,6 +19,8 @@ import {
 export const sittingSchema = z.object({
   exam: examSchema,
   attempt: attemptSchema,
+  /** Answers already saved on the server (restores work on another device). */
+  answers: z.array(answerSchema).default([]),
 });
 export type Sitting = z.infer<typeof sittingSchema>;
 
@@ -54,17 +57,48 @@ export function useSitting(attemptId: string) {
   return useQuery({
     queryKey: ["sitting", attemptId],
     queryFn: ({ signal }) => fetchSitting(attemptId, signal),
-    // The payload is fetched once and owned locally thereafter.
+    // The payload is fetched ONCE and owned locally thereafter (rule 3.3).
+    // Lock / unlock / time-up changes come from the lightweight status poll
+    // below, so a network blip can never replace the exam with an error.
     staleTime: Infinity,
     gcTime: Infinity,
     retry: 3,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    refetchInterval: 3_000,
+  });
+}
+
+const attemptStatusSchema = z.object({
+  status: attemptSchema.shape.status,
+  expiresAt: z.string(),
+  lockReason: z.string().nullable(),
+});
+export type AttemptStatus = z.infer<typeof attemptStatusSchema>;
+
+const STATUS_POLL_MS = 5_000;
+
+/**
+ * Small status poll (lock, unlock by the teacher, time up). Failures are
+ * ignored — the last known status stays in effect and the exam keeps working.
+ */
+export function useAttemptStatus(attemptId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["sitting-status", attemptId],
+    queryFn: ({ signal }) => {
+      if (USE_MOCKS) return null;
+      const token = getRequiredAttemptToken(attemptId);
+      return api.get(`/attempts/${attemptId}/status`, attemptStatusSchema, signal, token);
+    },
+    enabled,
+    refetchInterval: STATUS_POLL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    refetchOnWindowFocus: true,
   });
 }
 
 const syncAckSchema = z.object({ accepted: z.array(z.string()) });
+const lockAckSchema = z.object({ ok: z.boolean() });
 
 /**
  * Push queued answers to the server. Returns the IDs the server accepted so the
@@ -89,9 +123,17 @@ export async function syncAnswers(
   return res.accepted;
 }
 
-const eventsAckSchema = z.object({ stored: z.number() });
+/**
+ * Attach the student's optional explanation to a pause that is waiting for the
+ * teacher. Shown in the teacher's unlock queue.
+ */
+export async function sendLockNote(attemptId: string, note: string): Promise<void> {
+  if (USE_MOCKS || !note.trim()) return;
+  const token = getRequiredAttemptToken(attemptId);
+  await api.post(`/attempts/${attemptId}/lock-note`, { note }, lockAckSchema, token);
+}
 
-const lockAckSchema = z.object({ ok: z.boolean() });
+const eventsAckSchema = z.object({ stored: z.number() });
 
 export async function lockAttempt(attemptId: string, reason: string): Promise<void> {
   if (USE_MOCKS) return;
@@ -125,7 +167,7 @@ export async function postProctoringEvents(
 
 const submitAckSchema = z.object({ ok: z.boolean() });
 
-// ADDED: Network call to submit the exam using the student's attempt token
+/** Submit the attempt. Idempotent on the server — safe to retry. */
 export async function submitAttempt(attemptId: string): Promise<void> {
   if (USE_MOCKS) {
     await new Promise((r) => setTimeout(r, 300));

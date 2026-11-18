@@ -13,6 +13,7 @@ import type { AnswerRow } from "@/db/schema/answers";
 import { conflict, notFound } from "@/lib/errors";
 import type { RequestContext } from "@/middleware/context";
 import type { Block, Exam } from "@/schema";
+import { finalizeExpiredAttempts } from "@/modules/attempt";
 import { isAutoScored } from "./scoring";
 import type { ResultsQuery } from "./grading.schema";
 
@@ -187,6 +188,9 @@ export async function getGrading(ctx: RequestContext, examId: string) {
   if (!version) throw notFound("Exam version not found");
   const snapshot: Exam = version.snapshot;
 
+  // Sittings whose time ran out count as submitted even if the browser never
+  // came back to submit them.
+  await finalizeExpiredAttempts(ctx, examId);
   const attemptRows = await sdb.db
     .select()
     .from(attempts)
@@ -275,6 +279,7 @@ export async function scoreAnswer(
  */
 export async function releaseResults(ctx: RequestContext, examId: string) {
   const sdb = scopedDb(ctx.organizationId);
+  await finalizeExpiredAttempts(ctx, examId);
 
   const attemptRows = await sdb.db
     .select({ id: attempts.id })
