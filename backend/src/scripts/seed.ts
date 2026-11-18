@@ -80,6 +80,7 @@ async function main() {
     id: GROUP_ID,
     organizationId: ORG_ID,
     name: "Computer Science · Year 2",
+    createdBy: USER_ID,
   }).onConflictDoNothing();
 
   await db.insert(exams).values({
@@ -92,6 +93,7 @@ async function main() {
     security: "high",
     durationMinutes: 90,
     examKey: "ALGO-7F3K",
+    createdBy: USER_ID,
   }).onConflictDoNothing();
 
   await db.insert(examSections).values({

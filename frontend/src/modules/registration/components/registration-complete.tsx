@@ -38,7 +38,9 @@ export function RegistrationComplete() {
       const organizationName = typeof metadata.organization_name === "string" ? metadata.organization_name : "";
       const adminName = typeof metadata.full_name === "string" ? metadata.full_name : "";
       if (!organizationName || !adminName) {
-        setMessage("We couldn't recover your registration details. Please register again.");
+        // Signed in, but the sign-up details weren't saved on this account
+        // (e.g. the email was already registered via Google). Ask for them.
+        router.replace("/register/setup");
         return;
       }
       try {

@@ -9,6 +9,13 @@ export const registrationInputSchema = z.object({
 
 export type RegistrationInput = z.infer<typeof registrationInputSchema>;
 
+export const organizationSetupSchema = registrationInputSchema.pick({
+  organizationName: true,
+  adminName: true,
+});
+
+export type OrganizationSetupInput = z.infer<typeof organizationSetupSchema>;
+
 export const registrationResultSchema = z.object({
   organizationId: z.string(),
   organizationName: z.string(),

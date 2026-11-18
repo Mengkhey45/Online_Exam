@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -18,8 +19,10 @@ export function RegistrationForm() {
     defaultValues: { organizationName: "", adminName: "", email: "", password: "" },
   });
   const { formState: { errors, isSubmitting }, register, handleSubmit, setError } = form;
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   async function submit(input: RegistrationInput) {
+    setAlreadyRegistered(false);
     const redirectTo = `${window.location.origin}/register/complete`;
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
@@ -34,6 +37,12 @@ export function RegistrationForm() {
     });
     if (error) {
       setError("root", { message: error.message });
+      return;
+    }
+    // Supabase doesn't error for an existing email (to avoid leaking which
+    // emails exist); it returns a user with no identities and sends no email.
+    if (data.user && data.user.identities?.length === 0) {
+      setAlreadyRegistered(true);
       return;
     }
     if (!data.session) {
@@ -63,6 +72,11 @@ export function RegistrationForm() {
         <Input id="admin-password" type="password" autoComplete="new-password" {...register("password")} />
       </Field>
       {errors.root?.message ? <p role="alert" className="text-sm text-danger">{errors.root.message}</p> : null}
+      {alreadyRegistered ? (
+        <p role="alert" className="text-sm text-danger">
+          This email is already registered. <Link className="font-medium text-accent hover:underline" href="/login">Sign in</Link> instead. If you signed up with Google, use Continue with Google. You’ll be asked to set up your organization if it isn’t finished.
+        </p>
+      ) : null}
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? "Creating organization…" : "Create organization"}
       </Button>

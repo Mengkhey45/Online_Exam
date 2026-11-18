@@ -226,8 +226,8 @@ export function BuilderProvider({
   useEffect(() => {
     try {
       if (initial.status === "published") {
+        // `finally` below marks the store hydrated.
         sessionStorage.removeItem(`exam-builder:${initial.examId}`);
-        setHydrated(true);
         return;
       }
       const raw = sessionStorage.getItem(`exam-builder:${initial.examId}`);
@@ -249,7 +249,7 @@ export function BuilderProvider({
     } finally {
       setHydrated(true);
     }
-  }, [initial.examId]);
+  }, [initial.examId, initial.status]);
 
   useEffect(() => {
     if (!hydrated) return;
